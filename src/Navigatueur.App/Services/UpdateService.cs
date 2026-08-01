@@ -14,13 +14,10 @@ namespace Navigatueur.App.Services;
 /// The toolbar's update button stays hidden until <see cref="IsUpdateAvailable"/>
 /// flips true; clicking it downloads the new installer and hands off to it.
 ///
-/// NOTE: GitHubOwner/GitHubRepo are placeholders — checks will just fail
-/// silently (404, swallowed below) until this points at the real repo where
-/// release installers get published.
 /// </summary>
 public partial class UpdateService : ObservableObject
 {
-    private const string GitHubOwner = "changeme";
+    private const string GitHubOwner = "jubifox";
     private const string GitHubRepo = "navigatueur";
 
     private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
