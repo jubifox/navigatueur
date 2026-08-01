@@ -114,6 +114,11 @@ public partial class BrowserTabView : UserControl
             return;
         }
 
+        if (!ViewModel.TabManager.IsPrivate)
+        {
+            AppServices.Extensions.AttachProfile(webView.CoreWebView2.Profile);
+        }
+
         webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
             NewTabHostName, NewTabFolder, CoreWebView2HostResourceAccessKind.Allow);
 
@@ -139,6 +144,7 @@ public partial class BrowserTabView : UserControl
         webView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
         webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
         webView.CoreWebView2.PermissionRequested += OnPermissionRequested;
+        webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
 
         ViewModel.AttachCoreWebView2(webView.CoreWebView2);
         webView.CoreWebView2.Navigate(ViewModel.AddressBarText);
@@ -174,6 +180,9 @@ public partial class BrowserTabView : UserControl
         })();
         """;
     }
+
+    private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e) =>
+        AppServices.Downloads.TrackDownload(e.DownloadOperation);
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
     {

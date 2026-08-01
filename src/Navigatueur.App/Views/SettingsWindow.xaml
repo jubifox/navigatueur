@@ -1,15 +1,16 @@
 <Window x:Class="Navigatueur.App.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Paramètres" Width="380" Height="560"
+        Title="Paramètres" Width="380" Height="620"
         Background="{DynamicResource ChromeBackgroundBrush}"
         WindowStartupLocation="CenterOwner">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
     <StackPanel Margin="16">
         <TextBlock Text="Thème" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
             <Button Content="Sombre" Padding="14,6" Margin="0,0,8,0" Click="OnDarkClick">
                 <Button.Style>
-                    <Style TargetType="Button">
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ThemeMode}" Value="Dark">
                                 <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
@@ -20,7 +21,7 @@
             </Button>
             <Button Content="Clair" Padding="14,6" Click="OnLightClick">
                 <Button.Style>
-                    <Style TargetType="Button">
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ThemeMode}" Value="Light">
                                 <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
@@ -40,6 +41,37 @@
             <Button Width="28" Height="28" Margin="0,0,6,0" Background="#B14FE0" Click="OnAccentSwatchClick" Tag="#B14FE0" ToolTip="Violet" />
             <Button Width="28" Height="28" Background="#4FD1E0" Click="OnAccentSwatchClick" Tag="#4FD1E0" ToolTip="Cyan" />
         </StackPanel>
+
+        <TextBlock Text="Ou choisis une teinte" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <Grid Margin="0,0,0,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid VerticalAlignment="Center">
+                <Rectangle Height="6" RadiusX="3" RadiusY="3" VerticalAlignment="Center" IsHitTestVisible="False">
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#FF0000" Offset="0" />
+                            <GradientStop Color="#FFFF00" Offset="0.167" />
+                            <GradientStop Color="#00FF00" Offset="0.333" />
+                            <GradientStop Color="#00FFFF" Offset="0.5" />
+                            <GradientStop Color="#0000FF" Offset="0.667" />
+                            <GradientStop Color="#FF00FF" Offset="0.833" />
+                            <GradientStop Color="#FF0000" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Slider x:Name="HueSlider" Minimum="0" Maximum="359" Background="Transparent"
+                        ValueChanged="OnHueChanged" />
+            </Grid>
+            <Border Grid.Column="1" Width="28" Height="28" Margin="10,0,0,0" CornerRadius="4"
+                    BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1">
+                <Border.Background>
+                    <SolidColorBrush x:Name="HuePreviewBrush" Color="#4C8DFF" />
+                </Border.Background>
+            </Border>
+        </Grid>
 
         <TextBlock Text="Fond du navigateur" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
@@ -66,7 +98,7 @@
                 <DataTemplate>
                     <Button Padding="10,6" Margin="0,0,8,8" Click="OnEngineClick" Tag="{Binding Id}">
                         <Button.Style>
-                            <Style TargetType="Button">
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                         <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
@@ -80,4 +112,5 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
     </StackPanel>
+    </ScrollViewer>
 </Window>

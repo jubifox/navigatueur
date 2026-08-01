@@ -53,9 +53,6 @@
             <!-- Wash fade over the rest of the overlay, blending into the cover -->
             <Rectangle Fill="{Binding FadeBrush}" IsHitTestVisible="False" />
 
-            <TextBlock Text="{Binding SourceAppName}" Foreground="{Binding ForegroundBrush}" Opacity="0.8" FontSize="11"
-                       Margin="12,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top" />
-
             <Button Content="✕" Style="{StaticResource IconButton}" Foreground="{Binding ForegroundBrush}"
                     Click="OnCloseClick" Margin="0,8,8,0" HorizontalAlignment="Right" VerticalAlignment="Top" />
 

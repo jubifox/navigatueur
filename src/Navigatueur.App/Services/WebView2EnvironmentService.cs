@@ -30,6 +30,9 @@ public sealed class WebView2EnvironmentService
 
     public Task<CoreWebView2Environment> GetEnvironmentAsync()
     {
-        return _environmentTask ??= CoreWebView2Environment.CreateAsync(userDataFolder: _userDataFolder);
+        return _environmentTask ??= CoreWebView2Environment.CreateAsync(
+            browserExecutableFolder: null,
+            userDataFolder: _userDataFolder,
+            options: new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true });
     }
 }

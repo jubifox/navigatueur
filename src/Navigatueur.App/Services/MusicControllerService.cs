@@ -40,9 +40,6 @@ public partial class MusicControllerService : ObservableObject
     private bool isPlaying;
 
     [ObservableProperty]
-    private string sourceAppName = string.Empty;
-
-    [ObservableProperty]
     private ImageSource? cover;
 
     [ObservableProperty]
@@ -101,7 +98,6 @@ public partial class MusicControllerService : ObservableObject
             Title = properties.Title ?? string.Empty;
             Artist = properties.Artist ?? string.Empty;
             IsPlaying = playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
-            SourceAppName = PrettifySourceAppId(_session.SourceAppUserModelId);
 
             var duration = timeline.EndTime - timeline.StartTime;
             var position = timeline.Position - timeline.StartTime;
@@ -263,35 +259,6 @@ public partial class MusicControllerService : ObservableObject
         }
 
         return Luminance(background) > 0.5 ? Colors.Black : Colors.White;
-    }
-
-    /// <summary>
-    /// SMTC only exposes the source as a package AUMID (e.g.
-    /// "Microsoft.MicrosoftEdge_8wekyb3d8bbwe!MSEDGE"), not the per-tab site
-    /// like Windows' own Now Playing flyout shows — there's no public API for
-    /// that. Best effort: strip the package suffix and map known browsers to
-    /// a readable name, otherwise show the raw id.
-    /// </summary>
-    private static string PrettifySourceAppId(string? aumid)
-    {
-        if (string.IsNullOrEmpty(aumid))
-        {
-            return string.Empty;
-        }
-
-        var name = aumid.Split('!')[0];
-        var underscoreIndex = name.IndexOf('_');
-        if (underscoreIndex > 0)
-        {
-            name = name[..underscoreIndex];
-        }
-
-        return name switch
-        {
-            "Microsoft.MicrosoftEdge" or "MSEdge" => "Microsoft Edge",
-            "Google.Chrome" or "chrome" => "Google Chrome",
-            _ => name,
-        };
     }
 
     [RelayCommand]

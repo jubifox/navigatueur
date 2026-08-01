@@ -31,5 +31,9 @@ public static class AppServices
 
     public static UpdateService Update { get; } = new();
 
+    public static DownloadManagerService Downloads { get; } = new();
+
+    public static ExtensionService Extensions { get; } = new();
+
     public static TabManagerService TabManager { get; } = new(CurrentSettings);
 }

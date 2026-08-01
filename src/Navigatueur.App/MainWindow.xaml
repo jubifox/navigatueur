@@ -79,7 +79,42 @@
                     <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.ReloadCommand}" ToolTip="Actualiser">
                         <Path Data="{StaticResource IconRefresh}" Style="{StaticResource VectorIcon}" />
                     </Button>
+                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.TogglePictureInPictureCommand}" ToolTip="Picture-in-Picture">
+                        <Path Data="{StaticResource IconPip}" Style="{StaticResource VectorIcon}" />
+                    </Button>
                 </StackPanel>
+                <Button x:Name="DownloadsButton" Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnToggleDownloadsClick" ToolTip="Téléchargements">
+                    <Grid>
+                        <Path Data="{StaticResource IconDownload}" Style="{StaticResource VectorIcon}" />
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
+                                 Visibility="{Binding Downloads.HasActiveDownloads, Converter={StaticResource BoolToVis}}" />
+                    </Grid>
+                </Button>
+                <Popup x:Name="DownloadsPopup" PlacementTarget="{Binding ElementName=DownloadsButton}" Placement="Bottom" StaysOpen="False">
+                    <Border Background="{DynamicResource ChromeBackgroundBrush}" BorderBrush="{DynamicResource ChromeBorderBrush}"
+                            BorderThickness="1" CornerRadius="4" Padding="8" MinWidth="260" MaxHeight="320">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Downloads.Downloads}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,4,0,8">
+                                            <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource ChromeTextBrush}" FontSize="12" />
+                                            <ProgressBar Height="4" Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}"
+                                                         Margin="0,4,0,2" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource AccentBrush}" BorderThickness="0" />
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
+                                                           Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" FontSize="10" />
+                                                <Button DockPanel.Dock="Right" Content="Ouvrir le dossier" FontSize="10" Padding="4,0"
+                                                        Command="{Binding OpenFolderCommand}" HorizontalContentAlignment="Right" />
+                                            </DockPanel>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
                 <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnToggleMusicOverlayClick" ToolTip="Contrôleur musique">
                     <Path Data="{StaticResource IconMusic}" Style="{StaticResource VectorIcon}" />
                 </Button>
@@ -92,6 +127,12 @@
                               Width="14" Height="14" Stretch="Uniform" Margin="0,0,6,0" />
                         <TextBlock Text="Mise à jour" Foreground="White" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
+                </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding ToggleCompactModeCommand}" ToolTip="Mode compact">
+                    <Path Data="{StaticResource IconPanelLeft}" Style="{StaticResource VectorIcon}" />
+                </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenExtensionsClick" ToolTip="Extensions">
+                    <Path Data="{StaticResource IconPuzzle}" Style="{StaticResource VectorIcon}" />
                 </Button>
                 <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSettingsClick" ToolTip="Paramètres">
                     <Path Data="{StaticResource IconSettings}" Style="{StaticResource VectorIcon}" />
@@ -128,7 +169,21 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220" MinWidth="140" MaxWidth="400" />
+                <ColumnDefinition Width="220">
+                    <ColumnDefinition.Style>
+                        <Style TargetType="ColumnDefinition">
+                            <Setter Property="MinWidth" Value="140" />
+                            <Setter Property="MaxWidth" Value="400" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
+                                    <Setter Property="Width" Value="52" />
+                                    <Setter Property="MinWidth" Value="52" />
+                                    <Setter Property="MaxWidth" Value="52" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ColumnDefinition.Style>
+                </ColumnDefinition>
                 <ColumnDefinition Width="4" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
@@ -140,7 +195,17 @@
                             Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet">
                         <StackPanel Orientation="Horizontal">
                             <Path Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,8,0" />
-                            <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                            <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Button>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -169,27 +234,29 @@
                                         </ControlTemplate>
                                     </Button.Template>
                                     <DockPanel>
-                                        <Path DockPanel.Dock="Right" Width="12" Height="12">
+                                        <Path DockPanel.Dock="Left" Width="15" Height="15" Margin="0,0,6,0" StrokeThickness="1.8">
                                             <Path.Style>
                                                 <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
-                                                    <Setter Property="Data" Value="{StaticResource IconChevronDown}" />
+                                                    <Setter Property="Data" Value="{StaticResource IconFolder}" />
+                                                    <Setter Property="Stroke" Value="{Binding ColorHex}" />
                                                     <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
-                                                            <Setter Property="Data" Value="{StaticResource IconChevronRight}" />
+                                                        <DataTrigger Binding="{Binding IsCollapsed}" Value="False">
+                                                            <Setter Property="Data" Value="{StaticResource IconFolderOpen}" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
                                             </Path.Style>
                                         </Path>
-                                        <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,6,0"
-                                                 VerticalAlignment="Center" Fill="{Binding ColorHex}" />
                                         <Grid>
-                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}"
                                                        Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Style.Triggers>
                                                             <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding DataContext.IsCompactMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -221,9 +288,29 @@
                                         Command="{Binding DataContext.ActivateTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                         CommandParameter="{Binding}"
                                         AllowDrop="True"
+                                        RenderTransformOrigin="0.5,0.5"
                                         PreviewMouseLeftButtonDown="OnTabPreviewMouseLeftButtonDown"
                                         PreviewMouseMove="OnTabPreviewMouseMove"
                                         Drop="OnTabDrop">
+                                    <Button.RenderTransform>
+                                        <TranslateTransform Y="-6" />
+                                    </Button.RenderTransform>
+                                    <Button.Triggers>
+                                        <EventTrigger RoutedEvent="Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     From="0" To="1" Duration="0:0:0.15" />
+                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y"
+                                                                     From="-6" To="0" Duration="0:0:0.15">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <QuadraticEase EasingMode="EaseOut" />
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Button.Triggers>
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Margin" Value="4,2" />
@@ -276,7 +363,7 @@
                                                 Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}">
                                             <Button.Style>
-                                                <Style TargetType="Button">
+                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding IsPinned}" Value="True">
                                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -303,8 +390,18 @@
                                                 </Path.Style>
                                             </Path>
                                         </Button>
-                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
-                                                   Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Title}"
+                                                   Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding DataContext.IsCompactMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </DockPanel>
                                 </Button>
                             </DataTemplate>

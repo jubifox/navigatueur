@@ -1,0 +1,39 @@
+<Window x:Class="Navigatueur.App.Views.ExtensionsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Extensions" Width="440" Height="520"
+        Background="{DynamicResource ChromeBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" Text="Extensions" FontWeight="Bold" FontSize="16"
+                   Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,4" />
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Navigatueur peut charger de vraies extensions Chrome (uBlock Origin, BetterTTV, Coupert...), comme Edge. Il faut un dossier d'extension « non empaqueté » (avec un manifest.json à l'intérieur) — récupéré depuis le code source si l'extension est open-source, ou extrait d'un .crx."
+                   Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.7" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,12" />
+
+        <Button DockPanel.Dock="Top" Content="Ajouter une extension..." Padding="10,6" HorizontalAlignment="Left"
+                Margin="0,0,0,8" Click="OnAddExtensionClick" />
+
+        <TextBlock DockPanel.Dock="Top" x:Name="ErrorText" Foreground="#E04F4F" FontSize="11"
+                   TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed" />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Extensions}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Content="Supprimer" FontSize="11" Padding="8,4"
+                                        Command="{Binding RemoveCommand}" />
+                                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

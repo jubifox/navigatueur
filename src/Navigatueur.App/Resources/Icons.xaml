@@ -21,6 +21,7 @@
     </GeometryGroup>
     <PathGeometry x:Key="IconPrivate" Figures="M18 11c-1.5 0-2.5.5-3 2 M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2z M6 11c1.5 0 2.5.5 3 2" />
     <PathGeometry x:Key="IconFolder" Figures="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    <PathGeometry x:Key="IconFolderOpen" Figures="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2" />
     <GeometryGroup x:Key="IconMusic">
         <PathGeometry Figures="M9 18V5l12-2v13" />
         <EllipseGeometry Center="6,18" RadiusX="3" RadiusY="3" />
@@ -42,6 +43,15 @@
     </GeometryGroup>
     <PathGeometry x:Key="IconChevronDown" Figures="M6 9 L12 15 L18 9" />
     <PathGeometry x:Key="IconDownload" Figures="M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10 L12 15 L17 10" />
+    <PathGeometry x:Key="IconPuzzle" Figures="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" />
+    <GeometryGroup x:Key="IconPip">
+        <PathGeometry Figures="M21 9V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10c0 1.1.9 2 2 2h4" />
+        <RectangleGeometry Rect="12,13,10,7" RadiusX="2" RadiusY="2" />
+    </GeometryGroup>
+    <GeometryGroup x:Key="IconPanelLeft">
+        <RectangleGeometry Rect="3,3,18,18" RadiusX="2" RadiusY="2" />
+        <PathGeometry Figures="M9 3 L9 21" />
+    </GeometryGroup>
     <PathGeometry x:Key="IconChevronRight" Figures="M9 18 L15 12 L9 6" />
 
     <Style x:Key="VectorIcon" TargetType="Path">

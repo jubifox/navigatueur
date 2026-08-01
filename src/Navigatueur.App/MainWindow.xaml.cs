@@ -14,6 +14,7 @@ public partial class MainWindow : Window
 {
     private readonly Views.MusicOverlayWindow _musicOverlay = new();
     private Views.SettingsWindow? _settingsWindow;
+    private Views.ExtensionsWindow? _extensionsWindow;
     private Views.PrivateBrowsingWindow? _privateWindow;
     private Point? _tabDragStart;
     private BrowserTabViewModel? _tabDragSource;
@@ -116,6 +117,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnOpenExtensionsClick(object sender, RoutedEventArgs e)
+    {
+        if (_extensionsWindow is null)
+        {
+            _extensionsWindow = new Views.ExtensionsWindow { Owner = this };
+            _extensionsWindow.Closed += (_, _) => _extensionsWindow = null;
+            _extensionsWindow.Show();
+        }
+        else
+        {
+            _extensionsWindow.Activate();
+        }
+    }
+
     private void OnOpenSettingsClick(object sender, RoutedEventArgs e)
     {
         if (_settingsWindow is null)
@@ -143,6 +158,9 @@ public partial class MainWindow : Window
             _privateWindow.Activate();
         }
     }
+
+    private void OnToggleDownloadsClick(object sender, RoutedEventArgs e) =>
+        DownloadsPopup.IsOpen = !DownloadsPopup.IsOpen;
 
     private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
     {

@@ -24,6 +24,12 @@ public partial class MainWindowViewModel : ObservableObject
 
     public UpdateService Update => AppServices.Update;
 
+    public DownloadManagerService Downloads => AppServices.Downloads;
+
+    /// <summary>UI-only, not persisted — shrinks the vertical tab strip to an icon-only rail.</summary>
+    [ObservableProperty]
+    private bool isCompactMode;
+
     public MainWindowViewModel(TabManagerService tabManager)
     {
         _tabManager = tabManager;
@@ -51,4 +57,7 @@ public partial class MainWindowViewModel : ObservableObject
 
     [RelayCommand]
     private void ToggleGroupCollapsed(TabGroup group) => _tabManager.ToggleGroupCollapsed(group);
+
+    [RelayCommand]
+    private void ToggleCompactMode() => IsCompactMode = !IsCompactMode;
 }

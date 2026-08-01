@@ -276,6 +276,22 @@ public partial class BrowserTabViewModel : ObservableObject
     [RelayCommand]
     private void ToggleMute() => IsMuted = !IsMuted;
 
+    private const string TogglePictureInPictureScript = """
+        (function() {
+          if (document.pictureInPictureElement) {
+            document.exitPictureInPicture();
+            return;
+          }
+          var video = document.querySelector('video');
+          if (video && video.requestPictureInPicture) {
+            video.requestPictureInPicture().catch(function() {});
+          }
+        })();
+        """;
+
+    [RelayCommand]
+    private void TogglePictureInPicture() => _ = _coreWebView2?.ExecuteScriptAsync(TogglePictureInPictureScript);
+
     [RelayCommand]
     private void Navigate()
     {
