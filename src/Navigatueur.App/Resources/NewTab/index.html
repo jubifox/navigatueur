@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Nouvel onglet</title>
+<style>
+  :root {
+    --nv-accent: #4c8dff;
+  }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1e1f22;
+    font-family: "Segoe UI", sans-serif;
+    color: #e4e4e7;
+    position: relative;
+  }
+
+  .bg-layer {
+    position: fixed;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    z-index: 0;
+  }
+
+  .bg-layer.has-image::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+  }
+
+  .home {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 560px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  h1 {
+    font-weight: 600;
+    font-size: 28px;
+    letter-spacing: 0.5px;
+    margin: 0 0 24px 0;
+  }
+
+  form {
+    display: flex;
+  }
+
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 16px;
+    border-radius: 24px 0 0 24px;
+    border: 1px solid #3a3b3f;
+    background: #2b2d31;
+    color: #e4e4e7;
+    font-size: 15px;
+    outline: none;
+  }
+
+  input[type="text"]:focus {
+    border-color: var(--nv-accent);
+  }
+
+  button {
+    padding: 12px 20px;
+    border-radius: 0 24px 24px 0;
+    border: 1px solid var(--nv-accent);
+    background: var(--nv-accent);
+    color: white;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  button:hover {
+    filter: brightness(0.9);
+  }
+</style>
+</head>
+<body>
+  <div class="bg-layer" id="bgLayer"></div>
+  <div class="home">
+    <h1>Navigatueur</h1>
+    <form id="searchForm" action="https://www.bing.com/search" method="get" target="_top">
+      <input type="text" name="q" autofocus placeholder="Rechercher sur le web…" />
+      <button type="submit">Rechercher</button>
+    </form>
+  </div>
+</body>
+</html>

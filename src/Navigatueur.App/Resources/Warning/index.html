@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Site potentiellement dangereux</title>
+<style>
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #2a1414;
+    font-family: "Segoe UI", sans-serif;
+    color: #f2e4e4;
+  }
+
+  .box {
+    width: 100%;
+    max-width: 520px;
+    padding: 32px;
+    text-align: center;
+  }
+
+  .icon {
+    font-size: 48px;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    font-weight: 600;
+    font-size: 22px;
+    margin: 0 0 12px 0;
+  }
+
+  p {
+    line-height: 1.5;
+    opacity: 0.85;
+  }
+
+  .target {
+    display: block;
+    margin: 12px 0 24px 0;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 6px;
+    word-break: break-all;
+    font-size: 13px;
+    opacity: 0.9;
+  }
+
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  a {
+    text-decoration: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .safe {
+    background: #e0e0e0;
+    color: #1e1e1e;
+  }
+
+  .unsafe {
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #f2e4e4;
+    opacity: 0.7;
+  }
+
+  .unsafe:hover {
+    opacity: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="icon">⚠️</div>
+    <h1>Ce site a été signalé comme site de hameçonnage</h1>
+    <p>Navigatueur a bloqué la navigation vers ce site car son domaine figure sur une liste de sites de phishing actifs. Il pourrait essayer de voler des identifiants ou des informations bancaires.</p>
+    <span class="target" id="target"></span>
+    <div class="actions">
+      <a class="safe" href="https://navigatueur.home/index.html">Retourner en lieu sûr</a>
+      <a class="unsafe" id="continueLink" href="#">Continuer quand même</a>
+    </div>
+  </div>
+  <script>
+    var params = new URLSearchParams(location.search);
+    var target = params.get('url') || '';
+    document.getElementById('target').textContent = target;
+    document.getElementById('continueLink').href =
+      'https://navigatueur.warning/continue?url=' + encodeURIComponent(target);
+  </script>
+</body>
+</html>

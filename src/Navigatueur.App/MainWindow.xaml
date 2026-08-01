@@ -1,0 +1,338 @@
+<Window x:Class="Navigatueur.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:views="clr-namespace:Navigatueur.App.Views"
+        xmlns:models="clr-namespace:Navigatueur.App.Models"
+        xmlns:vm="clr-namespace:Navigatueur.App.ViewModels"
+        Title="Navigatueur"
+        Background="{DynamicResource ChromeBackgroundBrush}"
+        WindowStyle="None" ResizeMode="CanResize"
+        Height="800" Width="1280">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style x:Key="CaptionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="44" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="shell:WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+        </Style>
+        <Style x:Key="CaptionIcon" TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="StrokeThickness" Value="1.6" />
+        </Style>
+    </Window.Resources>
+    <Grid>
+        <!-- Chrome background image (if the user picked one) + a semi-transparent wash in the theme
+             background color on top, so the toolbar/tab strip stay readable over any photo. -->
+        <Image Source="{Binding Theme.ChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}"
+               Stretch="UniformToFill" />
+        <Border Background="{DynamicResource ChromeBackgroundBrush}" Opacity="0.55" />
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Custom title bar, replacing the native white caption so it matches the app's own theme. -->
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}">
+            <DockPanel LastChildFill="False">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="10,0" VerticalAlignment="Center">
+                    <TextBlock Text="🧭" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center" />
+                    <TextBlock Text="Navigatueur" FontSize="12" Opacity="0.85"
+                               Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                    <Button Style="{StaticResource CaptionButton}" Click="OnMinimizeClick" ToolTip="Réduire">
+                        <Path Data="{StaticResource IconMinimize}" Style="{StaticResource CaptionIcon}" />
+                    </Button>
+                    <Button Style="{StaticResource CaptionButton}" Click="OnMaximizeRestoreClick" ToolTip="Agrandir/Restaurer">
+                        <Path Style="{StaticResource CaptionIcon}">
+                            <Path.Data>
+                                <Binding Path="WindowState" RelativeSource="{RelativeSource AncestorType=Window}"
+                                         Converter="{StaticResource WindowStateToIconConverter}" />
+                            </Path.Data>
+                        </Path>
+                    </Button>
+                    <Button Style="{StaticResource CaptionButton}" Click="OnCloseClick" ToolTip="Fermer">
+                        <Path Data="{StaticResource IconClose}" Style="{StaticResource CaptionIcon}" />
+                    </Button>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="1" Padding="6" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,0,1">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="0,0,8,0">
+                    <Button Width="32" Command="{Binding ActiveTab.GoBackCommand}" ToolTip="Précédent">
+                        <Path Data="{StaticResource IconBack}" Style="{StaticResource VectorIcon}" />
+                    </Button>
+                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.GoForwardCommand}" ToolTip="Suivant">
+                        <Path Data="{StaticResource IconForward}" Style="{StaticResource VectorIcon}" />
+                    </Button>
+                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.ReloadCommand}" ToolTip="Actualiser">
+                        <Path Data="{StaticResource IconRefresh}" Style="{StaticResource VectorIcon}" />
+                    </Button>
+                </StackPanel>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnToggleMusicOverlayClick" ToolTip="Contrôleur musique">
+                    <Path Data="{StaticResource IconMusic}" Style="{StaticResource VectorIcon}" />
+                </Button>
+                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="8,4" Click="OnUpdateClick"
+                        Background="{DynamicResource AccentBrush}"
+                        Visibility="{Binding Update.IsUpdateAvailable, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="{StaticResource IconDownload}" Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="14" Height="14" Stretch="Uniform" Margin="0,0,6,0" />
+                        <TextBlock Text="Mise à jour" Foreground="White" VerticalAlignment="Center" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSettingsClick" ToolTip="Paramètres">
+                    <Path Data="{StaticResource IconSettings}" Style="{StaticResource VectorIcon}" />
+                </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenPrivateWindowClick" ToolTip="Nouvelle fenêtre de navigation privée">
+                    <Path Data="{StaticResource IconPrivate}" Style="{StaticResource VectorIcon}" />
+                </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSavedGroupsClick" ToolTip="Groupes enregistrés">
+                    <Path Data="{StaticResource IconFolder}" Style="{StaticResource VectorIcon}" />
+                    <Button.ContextMenu>
+                        <ContextMenu ItemsSource="{Binding SavedGroupMenuItems}">
+                            <ContextMenu.ItemContainerStyle>
+                                <Style TargetType="MenuItem">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </Style>
+                            </ContextMenu.ItemContainerStyle>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
+                <Border DockPanel.Dock="Right" Margin="8,0,0,0" Padding="8,4" CornerRadius="4" Background="{DynamicResource SurfaceBrush}">
+                    <TextBlock VerticalAlignment="Center"
+                               Text="{Binding MemoryMonitor.UsedMegabytes, StringFormat='{}{0} Mo'}"
+                               Foreground="{Binding MemoryMonitor.UsedMegabytes, Converter={StaticResource RamUsageToBrushConverter}}" />
+                </Border>
+                <TextBox VerticalContentAlignment="Center" Padding="8,4"
+                         Text="{Binding ActiveTab.AddressBarText, UpdateSourceTrigger=PropertyChanged}">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
+                    </TextBox.InputBindings>
+                </TextBox>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220" MinWidth="140" MaxWidth="400" />
+                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Vertical tab strip -->
+            <Border Grid.Column="0">
+                <DockPanel>
+                    <Button DockPanel.Dock="Bottom" Margin="4,4,4,6" Padding="8,8" HorizontalContentAlignment="Left"
+                            Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,8,0" />
+                            <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding TabStripItems}">
+                        <ItemsControl.Resources>
+
+                            <DataTemplate DataType="{x:Type models:TabGroup}">
+                                <Button Margin="4,2" Padding="0" HorizontalContentAlignment="Stretch"
+                                        Command="{Binding DataContext.ToggleGroupCollapsedCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.ContextMenu>
+                                        <ContextMenu ItemsSource="{Binding ContextMenuItems}">
+                                            <ContextMenu.ItemContainerStyle>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Header" Value="{Binding Header}" />
+                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                </Style>
+                                            </ContextMenu.ItemContainerStyle>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Padding="8,6" CornerRadius="4">
+                                                <ContentPresenter />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <DockPanel>
+                                        <Path DockPanel.Dock="Right" Width="12" Height="12">
+                                            <Path.Style>
+                                                <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+                                                    <Setter Property="Data" Value="{StaticResource IconChevronDown}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
+                                                            <Setter Property="Data" Value="{StaticResource IconChevronRight}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <Ellipse DockPanel.Dock="Left" Width="10" Height="10" Margin="0,0,6,0"
+                                                 VerticalAlignment="Center" Fill="{Binding ColorHex}" />
+                                        <Grid>
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                                     Visibility="Collapsed" VerticalContentAlignment="Center"
+                                                     PreviewMouseLeftButtonDown="OnGroupNameEditPreviewMouseDown"
+                                                     KeyDown="OnGroupNameEditKeyDown" LostFocus="OnGroupNameEditLostFocus"
+                                                     IsVisibleChanged="OnGroupNameEditIsVisibleChanged">
+                                                <TextBox.Style>
+                                                    <Style TargetType="TextBox">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsEditingName}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBox.Style>
+                                            </TextBox>
+                                        </Grid>
+                                    </DockPanel>
+                                </Button>
+                            </DataTemplate>
+
+                            <DataTemplate DataType="{x:Type vm:BrowserTabViewModel}">
+                                <Button Padding="0" HorizontalContentAlignment="Stretch"
+                                        Command="{Binding DataContext.ActivateTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"
+                                        AllowDrop="True"
+                                        PreviewMouseLeftButtonDown="OnTabPreviewMouseLeftButtonDown"
+                                        PreviewMouseMove="OnTabPreviewMouseMove"
+                                        Drop="OnTabDrop">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Margin" Value="4,2" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsGrouped}" Value="True">
+                                                    <Setter Property="Margin" Value="20,2,4,2" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsSuspended}" Value="True">
+                                                    <Setter Property="Opacity" Value="0.55" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                                    <Setter Property="Margin" Value="4,1" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <Button.ContextMenu>
+                                        <ContextMenu ItemsSource="{Binding ContextMenuItems}">
+                                            <ContextMenu.ItemContainerStyle>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Header" Value="{Binding Header}" />
+                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                </Style>
+                                            </ContextMenu.ItemContainerStyle>
+                                        </ContextMenu>
+                                    </Button.ContextMenu>
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Padding="8,6" CornerRadius="4"
+                                                    Background="{Binding IsActive, Converter={StaticResource ActiveTabBackgroundConverter}}">
+                                                <ContentPresenter />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <DockPanel>
+                                        <Path DockPanel.Dock="Left" Data="{StaticResource IconPin}"
+                                              Width="12" Height="12" Margin="0,0,4,0">
+                                            <Path.Style>
+                                                <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Path.Style>
+                                        </Path>
+                                        <Button DockPanel.Dock="Right" Width="20" Height="20" Padding="0"
+                                                Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <Path Data="{StaticResource IconClose}" Style="{StaticResource VectorIcon}" Width="10" Height="10" />
+                                        </Button>
+                                        <Button DockPanel.Dock="Right" Width="20" Height="20" Padding="0" Margin="0,0,2,0"
+                                                Command="{Binding ToggleMuteCommand}" ToolTip="Couper/réactiver le son">
+                                            <Path Width="13" Height="13">
+                                                <Path.Style>
+                                                    <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+                                                        <Setter Property="Data" Value="{StaticResource IconVolume}" />
+                                                        <Setter Property="Opacity" Value="0.5" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                                                                <Setter Property="Data" Value="{StaticResource IconMute}" />
+                                                                <Setter Property="Opacity" Value="1" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Path.Style>
+                                            </Path>
+                                        </Button>
+                                        <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Button>
+                            </DataTemplate>
+
+                        </ItemsControl.Resources>
+                    </ItemsControl>
+                </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{DynamicResource ChromeBorderBrush}" />
+
+            <!-- Content area: each BrowserTabView creates/disposes its own WebView2 based on IsSuspended; only the active one is visible. -->
+            <Grid Grid.Column="2">
+                <ItemsControl ItemsSource="{Binding Tabs}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Grid />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <views:BrowserTabView Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </Grid>
+    </Grid>
+    </Grid>
+</Window>

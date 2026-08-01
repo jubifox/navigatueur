@@ -1,0 +1,39 @@
+<Window x:Class="Navigatueur.App.Views.WelcomeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bienvenue" Width="380" Height="340"
+        Background="{DynamicResource ChromeBackgroundBrush}"
+        WindowStartupLocation="CenterScreen" ResizeMode="NoResize" WindowStyle="None">
+    <Border BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1">
+        <StackPanel Margin="20">
+            <TextBlock Text="Bienvenue sur Navigatueur" FontWeight="Bold" FontSize="16"
+                       Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,4" />
+            <TextBlock Text="Choisis ton moteur de recherche par défaut (modifiable plus tard dans les paramètres)."
+                       Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.75" FontSize="12"
+                       TextWrapping="Wrap" Margin="0,0,0,16" />
+
+            <ItemsControl x:Name="EngineList" Margin="0,0,0,20">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Padding="10,8" Margin="0,0,0,6" HorizontalContentAlignment="Left"
+                                Click="OnEngineClick" Tag="{Binding Id}">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource ChromeTextBrush}" />
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Button Content="Continuer" Padding="12,8" HorizontalAlignment="Right"
+                    Background="{DynamicResource AccentBrush}" Foreground="White" Click="OnContinueClick" />
+        </StackPanel>
+    </Border>
+</Window>

@@ -1,0 +1,83 @@
+<Window x:Class="Navigatueur.App.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Paramètres" Width="380" Height="560"
+        Background="{DynamicResource ChromeBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16">
+        <TextBlock Text="Thème" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Button Content="Sombre" Padding="14,6" Margin="0,0,8,0" Click="OnDarkClick">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ThemeMode}" Value="Dark">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Clair" Padding="14,6" Click="OnLightClick">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ThemeMode}" Value="Light">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+
+        <TextBlock Text="Couleur d'accent" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Button Width="28" Height="28" Margin="0,0,6,0" Background="#4C8DFF" Click="OnAccentSwatchClick" Tag="#4C8DFF" ToolTip="Bleu" />
+            <Button Width="28" Height="28" Margin="0,0,6,0" Background="#4FE0A0" Click="OnAccentSwatchClick" Tag="#4FE0A0" ToolTip="Vert" />
+            <Button Width="28" Height="28" Margin="0,0,6,0" Background="#E0A52A" Click="OnAccentSwatchClick" Tag="#E0A52A" ToolTip="Ambre" />
+            <Button Width="28" Height="28" Margin="0,0,6,0" Background="#E04F4F" Click="OnAccentSwatchClick" Tag="#E04F4F" ToolTip="Rouge" />
+            <Button Width="28" Height="28" Margin="0,0,6,0" Background="#B14FE0" Click="OnAccentSwatchClick" Tag="#B14FE0" ToolTip="Violet" />
+            <Button Width="28" Height="28" Background="#4FD1E0" Click="OnAccentSwatchClick" Tag="#4FD1E0" ToolTip="Cyan" />
+        </StackPanel>
+
+        <TextBlock Text="Fond du navigateur" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Button Content="Choisir une image..." Padding="10,6" Margin="0,0,8,0" Click="OnChooseChromeBackgroundClick" />
+            <Button Content="Réinitialiser" Padding="10,6" Click="OnResetChromeBackgroundClick" />
+        </StackPanel>
+
+        <TextBlock Text="Fond de la page nouvel onglet" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <Button Content="Choisir une image..." Padding="10,6" Margin="0,0,8,0" Click="OnChooseNewTabBackgroundClick" />
+            <Button Content="Réinitialiser" Padding="10,6" Click="OnResetNewTabBackgroundClick" />
+        </StackPanel>
+        <TextBlock Text="Les onglets déjà ouverts reprennent le nouveau fond au prochain rechargement."
+                   Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,20" />
+
+        <TextBlock Text="Moteur de recherche" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <ItemsControl x:Name="EngineList">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Padding="10,6" Margin="0,0,8,8" Click="OnEngineClick" Tag="{Binding Id}">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource ChromeTextBrush}" />
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</Window>

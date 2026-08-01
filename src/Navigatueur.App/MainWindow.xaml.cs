@@ -1,0 +1,251 @@
+using System.ComponentModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using Navigatueur.App.Models;
+using Navigatueur.App.Services;
+using Navigatueur.App.ViewModels;
+using Navigatueur.Core.Settings;
+
+namespace Navigatueur.App;
+
+public partial class MainWindow : Window
+{
+    private readonly Views.MusicOverlayWindow _musicOverlay = new();
+    private Views.SettingsWindow? _settingsWindow;
+    private Views.PrivateBrowsingWindow? _privateWindow;
+    private Point? _tabDragStart;
+    private BrowserTabViewModel? _tabDragSource;
+
+    public MainWindow()
+    {
+        InitializeComponent();
+
+        var settings = AppServices.CurrentSettings;
+        Width = settings.WindowWidth;
+        Height = settings.WindowHeight;
+        if (settings.WindowLeft.HasValue)
+        {
+            Left = settings.WindowLeft.Value;
+        }
+
+        if (settings.WindowTop.HasValue)
+        {
+            Top = settings.WindowTop.Value;
+        }
+
+        DataContext = new MainWindowViewModel(AppServices.TabManager);
+
+        if (AppServices.Settings.IsFirstRun)
+        {
+            new Views.WelcomeWindow().ShowDialog();
+        }
+
+        Closing += OnClosing;
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e) =>
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnToggleMusicOverlayClick(object sender, RoutedEventArgs e)
+    {
+        if (_musicOverlay.IsVisible)
+        {
+            _musicOverlay.Hide();
+        }
+        else
+        {
+            _musicOverlay.Show();
+        }
+    }
+
+    private void OnClosing(object? sender, CancelEventArgs e)
+    {
+        _musicOverlay.ShutDown();
+
+        var settings = AppServices.CurrentSettings;
+        settings.WindowWidth = Width;
+        settings.WindowHeight = Height;
+        settings.WindowLeft = Left;
+        settings.WindowTop = Top;
+
+        var tabManager = AppServices.TabManager;
+
+        settings.Groups = tabManager.Groups.Select(group => new SessionGroupState
+        {
+            Id = group.Id,
+            Name = group.Name,
+            ColorHex = group.ColorHex,
+            IsCollapsed = group.IsCollapsed,
+        }).ToList();
+
+        settings.Tabs = tabManager.Tabs.Select(tab => new SessionTabState
+        {
+            Url = tab.AddressBarText,
+            GroupId = tab.GroupId,
+            IsPinned = tab.IsPinned,
+        }).ToList();
+
+        settings.ActiveTabIndex = tabManager.ActiveTab is null
+            ? -1
+            : tabManager.Tabs.IndexOf(tabManager.ActiveTab);
+
+        // SavedGroups is already kept in sync with disk by TabManagerService
+        // whenever it changes, so it's deliberately not re-serialized here.
+        AppServices.Settings.Save(settings);
+    }
+
+    private async void OnUpdateClick(object sender, RoutedEventArgs e)
+    {
+        var update = AppServices.Update;
+        var result = MessageBox.Show(
+            this,
+            $"Une nouvelle version ({update.LatestVersion}) est disponible. Télécharger et installer maintenant ? L'application va se fermer pendant l'installation.",
+            "Mise à jour disponible",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            await update.DownloadAndInstallAsync();
+        }
+    }
+
+    private void OnOpenSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (_settingsWindow is null)
+        {
+            _settingsWindow = new Views.SettingsWindow { Owner = this };
+            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+            _settingsWindow.Show();
+        }
+        else
+        {
+            _settingsWindow.Activate();
+        }
+    }
+
+    private void OnOpenPrivateWindowClick(object sender, RoutedEventArgs e)
+    {
+        if (_privateWindow is null)
+        {
+            _privateWindow = new Views.PrivateBrowsingWindow();
+            _privateWindow.Closed += (_, _) => _privateWindow = null;
+            _privateWindow.Show();
+        }
+        else
+        {
+            _privateWindow.Activate();
+        }
+    }
+
+    private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu })
+        {
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnTabPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _tabDragStart = e.GetPosition(null);
+        _tabDragSource = (sender as FrameworkElement)?.DataContext as BrowserTabViewModel;
+    }
+
+    private void OnTabPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _tabDragStart is not { } start || _tabDragSource is null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(null);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop((DependencyObject)sender, _tabDragSource, DragDropEffects.Move);
+        _tabDragStart = null;
+        _tabDragSource = null;
+    }
+
+    private void OnTabDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(BrowserTabViewModel)))
+        {
+            return;
+        }
+
+        var source = (BrowserTabViewModel)e.Data.GetData(typeof(BrowserTabViewModel))!;
+        if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } targetElement || source == target)
+        {
+            return;
+        }
+
+        // Dropping on the middle band of the target row groups the two tabs (Chrome/Edge-style);
+        // dropping near the top/bottom edge just reorders, as before.
+        var dropY = e.GetPosition(targetElement).Y;
+        var isCenterDrop = targetElement.ActualHeight > 0
+            && dropY > targetElement.ActualHeight * 0.25
+            && dropY < targetElement.ActualHeight * 0.75;
+
+        if (isCenterDrop)
+        {
+            AppServices.TabManager.GroupTabs(source, target);
+        }
+        else
+        {
+            AppServices.TabManager.ReorderTab(source, target);
+        }
+    }
+
+    private void OnGroupNameEditPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Stops the click from bubbling into the group header Button, which would otherwise toggle collapse instead of placing the caret.
+        e.Handled = true;
+        ((TextBox)sender).Focus();
+    }
+
+    private void OnGroupNameEditKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (sender as FrameworkElement)?.DataContext is TabGroup group)
+        {
+            group.IsEditingName = false;
+        }
+    }
+
+    private void OnGroupNameEditLostFocus(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is TabGroup group)
+        {
+            group.IsEditingName = false;
+        }
+    }
+
+    private void OnGroupNameEditIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not TextBox { IsVisible: true } textBox)
+        {
+            return;
+        }
+
+        // The context menu that triggered "Renommer..." restores focus to its
+        // placement target (the group's Button) as it closes — if that lands
+        // after a synchronous Focus() call here, it steals focus right back
+        // and LostFocus immediately reverts the rename. Deferring past that
+        // restoration (ApplicationIdle) makes ours win instead.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            textBox.Focus();
+            textBox.SelectAll();
+        }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
+}
