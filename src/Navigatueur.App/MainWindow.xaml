@@ -37,6 +37,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Custom title bar, replacing the native white caption so it matches the app's own theme. -->
@@ -174,12 +175,31 @@
                                Text="{Binding MemoryMonitor.UsedMegabytes, StringFormat='{}{0} Mo'}"
                                Foreground="{Binding MemoryMonitor.UsedMegabytes, Converter={StaticResource RamUsageToBrushConverter}}" />
                 </Border>
-                <TextBox VerticalContentAlignment="Center" Padding="8,4"
-                         Text="{Binding ActiveTab.AddressBarText, UpdateSourceTrigger=PropertyChanged}">
-                    <TextBox.InputBindings>
-                        <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
-                    </TextBox.InputBindings>
-                </TextBox>
+                <Border x:Name="AddressBarTopSlot">
+                    <TextBox x:Name="AddressBarTextBox" VerticalContentAlignment="Center"
+                             Text="{Binding ActiveTab.AddressBarDisplayText, UpdateSourceTrigger=PropertyChanged}"
+                             PreviewMouseLeftButtonDown="OnAddressBarPreviewMouseLeftButtonDown">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
+                        </TextBox.InputBindings>
+                        <TextBox.Style>
+                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                                <Setter Property="Padding" Value="8,4" />
+                                <Setter Property="FontSize" Value="13" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Small">
+                                        <Setter Property="Padding" Value="6,2" />
+                                        <Setter Property="FontSize" Value="11" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Large">
+                                        <Setter Property="Padding" Value="12,8" />
+                                        <Setter Property="FontSize" Value="16" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+                </Border>
             </DockPanel>
         </Border>
 
@@ -207,24 +227,9 @@
             <!-- Vertical tab strip -->
             <Border Grid.Column="0">
                 <DockPanel>
-                    <Button DockPanel.Dock="Bottom" Margin="4,4,4,6" Padding="8,8" HorizontalContentAlignment="Left"
-                            Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet">
-                        <StackPanel Orientation="Horizontal">
-                            <Path Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,8,0" />
-                            <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                    </Button>
+                <Border x:Name="AddressBarSidebarSlot" DockPanel.Dock="Top" Margin="4,4,4,2" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
                     <ItemsControl ItemsSource="{Binding TabStripItems}">
                         <ItemsControl.Resources>
 
@@ -424,6 +429,24 @@
 
                         </ItemsControl.Resources>
                     </ItemsControl>
+                    <Button Margin="4,4,4,6" Padding="8,8" HorizontalContentAlignment="Left"
+                            Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,8,0" />
+                            <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Button>
+                    </StackPanel>
                 </ScrollViewer>
                 </DockPanel>
             </Border>
@@ -446,6 +469,9 @@
                 </ItemsControl>
             </Grid>
         </Grid>
+
+        <Border Grid.Row="3" x:Name="AddressBarBottomSlot" Padding="6"
+                BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,1,0,0" />
     </Grid>
     </Grid>
 </Window>

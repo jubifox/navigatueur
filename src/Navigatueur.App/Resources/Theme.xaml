@@ -12,6 +12,17 @@
     <converters:RamUsageToBrushConverter x:Key="RamUsageToBrushConverter" />
     <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter" />
 
+    <!--
+      App-wide font. FontFamily/FontWeight are inherited WPF properties, so
+      setting them once on every Window cascades to all of its descendants
+      (buttons, text boxes, menus...) without needing per-control styles.
+      Fallback chain covers machines without Cascadia Code installed.
+    -->
+    <Style TargetType="{x:Type Window}">
+        <Setter Property="FontFamily" Value="Cascadia Code SemiBold, Cascadia Code, Consolas, Segoe UI" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
     <Style TargetType="Button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource ChromeTextBrush}" />

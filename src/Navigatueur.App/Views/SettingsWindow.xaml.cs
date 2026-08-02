@@ -170,6 +170,22 @@ public partial class SettingsWindow : Window
         AppServices.SearchEngine.SetEngine(id);
     }
 
+    private void OnAddressBarPositionClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string position })
+        {
+            AppServices.Theme.SetAddressBarPosition(position);
+        }
+    }
+
+    private void OnAddressBarSizeClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string size })
+        {
+            AppServices.Theme.SetAddressBarSize(size);
+        }
+    }
+
     private void OnDarkClick(object sender, RoutedEventArgs e) => AppServices.Theme.SetThemeMode("Dark");
 
     private void OnLightClick(object sender, RoutedEventArgs e) => AppServices.Theme.SetThemeMode("Light");

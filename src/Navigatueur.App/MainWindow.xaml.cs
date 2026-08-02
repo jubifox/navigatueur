@@ -47,7 +47,39 @@ public partial class MainWindow : Window
             new Views.WelcomeWindow().ShowDialog();
         }
 
+        ApplyAddressBarPosition();
+        AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
+
         Closing += OnClosing;
+    }
+
+    private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ThemeService.AddressBarPosition))
+        {
+            ApplyAddressBarPosition();
+        }
+    }
+
+    /// <summary>
+    /// The address bar is a single TextBox instance moved between three empty
+    /// slot Borders (top toolbar, bottom of the window, top of the tab
+    /// column) rather than duplicated, so there's exactly one source of truth
+    /// for its focus/selection state regardless of where it's docked.
+    /// </summary>
+    private void ApplyAddressBarPosition()
+    {
+        AddressBarTopSlot.Child = null;
+        AddressBarBottomSlot.Child = null;
+        AddressBarSidebarSlot.Child = null;
+
+        var target = AppServices.Theme.AddressBarPosition switch
+        {
+            "Bottom" => AddressBarBottomSlot,
+            "Sidebar" => AddressBarSidebarSlot,
+            _ => AddressBarTopSlot,
+        };
+        target.Child = AddressBarTextBox;
     }
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -298,6 +330,15 @@ public partial class MainWindow : Window
 
     private void OnToggleDownloadsClick(object sender, RoutedEventArgs e) =>
         DownloadsPopup.IsOpen = !DownloadsPopup.IsOpen;
+
+    /// <summary>WPF's TextBox only handles double-click (select word) natively — triple-click (select the whole address) needs an explicit hook.</summary>
+    private void OnAddressBarPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 3 && sender is TextBox textBox)
+        {
+            textBox.SelectAll();
+        }
+    }
 
     private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
     {

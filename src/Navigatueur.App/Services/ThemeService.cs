@@ -43,6 +43,12 @@ public partial class ThemeService : ObservableObject
     [ObservableProperty]
     private string? newTabBackgroundImagePath;
 
+    [ObservableProperty]
+    private string addressBarPosition;
+
+    [ObservableProperty]
+    private string addressBarSize;
+
     public ThemeService(AppSettings settings)
     {
         _settings = settings;
@@ -50,8 +56,24 @@ public partial class ThemeService : ObservableObject
         accentColorHex = settings.AccentColorHex;
         chromeBackgroundImagePath = settings.ChromeBackgroundImagePath;
         newTabBackgroundImagePath = settings.NewTabBackgroundImagePath;
+        addressBarPosition = settings.AddressBarPosition;
+        addressBarSize = settings.AddressBarSize;
 
         ApplyPalette();
+    }
+
+    public void SetAddressBarPosition(string position)
+    {
+        AddressBarPosition = position;
+        _settings.AddressBarPosition = position;
+        Persist();
+    }
+
+    public void SetAddressBarSize(string size)
+    {
+        AddressBarSize = size;
+        _settings.AddressBarSize = size;
+        Persist();
     }
 
     public void SetThemeMode(string mode)

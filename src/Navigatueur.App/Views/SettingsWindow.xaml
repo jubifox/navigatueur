@@ -87,6 +87,80 @@
         <TextBlock Text="Les onglets déjà ouverts reprennent le nouveau fond au prochain rechargement."
                    Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,20" />
 
+        <TextBlock Text="Position de la barre d'adresse" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <Button Content="Haut" Padding="14,6" Margin="0,0,8,0" Click="OnAddressBarPositionClick" Tag="Top">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarPosition}" Value="Top">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Bas" Padding="14,6" Margin="0,0,8,0" Click="OnAddressBarPositionClick" Tag="Bottom">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarPosition}" Value="Bottom">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Colonne des onglets" Padding="14,6" Click="OnAddressBarPositionClick" Tag="Sidebar">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarPosition}" Value="Sidebar">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+
+        <TextBlock Text="Taille de la barre d'adresse" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+            <Button Content="Petite" Padding="14,6" Margin="0,0,8,0" Click="OnAddressBarSizeClick" Tag="Small">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarSize}" Value="Small">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Normale" Padding="14,6" Margin="0,0,8,0" Click="OnAddressBarSizeClick" Tag="Normal">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarSize}" Value="Normal">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Grande" Padding="14,6" Click="OnAddressBarSizeClick" Tag="Large">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding AddressBarSize}" Value="Large">
+                                <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+
         <TextBlock Text="Moteur de recherche" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
         <ItemsControl x:Name="EngineList">
             <ItemsControl.ItemsPanel>

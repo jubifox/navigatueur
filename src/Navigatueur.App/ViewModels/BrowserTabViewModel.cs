@@ -28,6 +28,22 @@ public partial class BrowserTabViewModel : ObservableObject
     [ObservableProperty]
     private string addressBarText;
 
+    /// <summary>
+    /// What the address bar actually shows: blank on the internal new-tab
+    /// page (navigatueur.home/...) instead of exposing that implementation
+    /// detail, matching how real browsers show an empty omnibox on their own
+    /// new-tab page. Reading/writing this just proxies to <see cref="AddressBarText"/>.
+    /// </summary>
+    public string AddressBarDisplayText
+    {
+        get => AddressBarText.StartsWith("https://navigatueur.home/", StringComparison.OrdinalIgnoreCase)
+            ? string.Empty
+            : AddressBarText;
+        set => AddressBarText = value;
+    }
+
+    partial void OnAddressBarTextChanged(string value) => OnPropertyChanged(nameof(AddressBarDisplayText));
+
     [ObservableProperty]
     private bool isLoading;
 

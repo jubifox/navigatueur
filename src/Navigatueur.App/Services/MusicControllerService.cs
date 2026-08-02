@@ -37,6 +37,12 @@ public partial class MusicControllerService : ObservableObject
     private string artist = string.Empty;
 
     [ObservableProperty]
+    private string album = string.Empty;
+
+    [ObservableProperty]
+    private bool hasAlbum;
+
+    [ObservableProperty]
     private bool isPlaying;
 
     [ObservableProperty]
@@ -97,11 +103,11 @@ public partial class MusicControllerService : ObservableObject
             HasSession = true;
             Title = properties.Title ?? string.Empty;
             Artist = properties.Artist ?? string.Empty;
+            Album = properties.AlbumTitle ?? string.Empty;
+            HasAlbum = !string.IsNullOrWhiteSpace(Album);
             IsPlaying = playback?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
 
-            var duration = timeline.EndTime - timeline.StartTime;
-            var position = timeline.Position - timeline.StartTime;
-            Progress = duration > TimeSpan.Zero ? Math.Clamp(position / duration, 0, 1) : 0;
+            Progress = ComputeProgress(timeline, IsPlaying);
 
             var trackKey = $"{Title}|{Artist}";
             if (trackKey != _lastTrackKey)
@@ -114,6 +120,37 @@ public partial class MusicControllerService : ObservableObject
         {
             HasSession = false;
         }
+    }
+
+    /// <summary>
+    /// SMTC's <see cref="GlobalSystemMediaTransportControlsSessionTimelineProperties.Position"/>
+    /// is only a snapshot as of <c>LastUpdatedTime</c> — many apps (browser tabs
+    /// especially) don't push a fresh update every second, so using it as-is made
+    /// the progress bar visibly lag behind the real playback position, then jump
+    /// forward whenever the app finally pushed an update. While playing, this
+    /// extrapolates the elapsed wall-clock time since the last update on top of
+    /// the reported position instead of trusting the stale snapshot directly.
+    /// </summary>
+    private static double ComputeProgress(GlobalSystemMediaTransportControlsSessionTimelineProperties timeline, bool isPlaying)
+    {
+        var duration = timeline.EndTime - timeline.StartTime;
+        if (duration <= TimeSpan.Zero)
+        {
+            return 0;
+        }
+
+        var position = timeline.Position;
+        if (isPlaying)
+        {
+            var elapsedSinceUpdate = DateTimeOffset.Now - timeline.LastUpdatedTime;
+            if (elapsedSinceUpdate > TimeSpan.Zero)
+            {
+                position += elapsedSinceUpdate;
+            }
+        }
+
+        var relativePosition = position - timeline.StartTime;
+        return Math.Clamp(relativePosition / duration, 0, 1);
     }
 
     private async Task LoadCoverAsync(Windows.Storage.Streams.IRandomAccessStreamReference? thumbnailRef)
@@ -284,10 +321,17 @@ public partial class MusicControllerService : ObservableObject
         }
 
         var timeline = _session.GetTimelineProperties();
-        var target = timeline.Position + delta;
-        if (target < TimeSpan.Zero)
+        var elapsedSinceUpdate = IsPlaying ? DateTimeOffset.Now - timeline.LastUpdatedTime : TimeSpan.Zero;
+        var currentPosition = timeline.Position + (elapsedSinceUpdate > TimeSpan.Zero ? elapsedSinceUpdate : TimeSpan.Zero);
+
+        var target = currentPosition + delta;
+        if (target < timeline.StartTime)
         {
-            target = TimeSpan.Zero;
+            target = timeline.StartTime;
+        }
+        else if (target > timeline.EndTime)
+        {
+            target = timeline.EndTime;
         }
 
         _ = _session.TryChangePlaybackPositionAsync(target.Ticks);

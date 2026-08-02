@@ -42,4 +42,10 @@ public sealed class AppSettings
 
     /// <summary>Which search engine the new-tab page's search box uses. One of the ids in SearchEngineService.Engines.</summary>
     public string SearchEngine { get; set; } = "Bing";
+
+    /// <summary>Where the address bar is docked: "Top" (toolbar, default), "Bottom", or "Sidebar" (top of the vertical tab column).</summary>
+    public string AddressBarPosition { get; set; } = "Top";
+
+    /// <summary>Address bar text/padding scale: "Small", "Normal", or "Large".</summary>
+    public string AddressBarSize { get; set; } = "Normal";
 }
