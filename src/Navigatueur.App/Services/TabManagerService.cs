@@ -426,8 +426,23 @@ public partial class TabManagerService : ObservableObject
 
         while (_liveOrder.Count > MaxLiveTabs)
         {
-            var evicted = _liveOrder[^1];
-            _liveOrder.RemoveAt(_liveOrder.Count - 1);
+            var evictIndex = -1;
+            for (var i = _liveOrder.Count - 1; i >= 0; i--)
+            {
+                if (!_liveOrder[i].IsPlayingAudio)
+                {
+                    evictIndex = i;
+                    break;
+                }
+            }
+
+            if (evictIndex < 0)
+            {
+                break; // every live tab is currently playing audio — exceed the cap rather than cut one off.
+            }
+
+            var evicted = _liveOrder[evictIndex];
+            _liveOrder.RemoveAt(evictIndex);
             evicted.IsSuspended = true;
         }
     }
@@ -438,7 +453,7 @@ public partial class TabManagerService : ObservableObject
         for (var i = _liveOrder.Count - 1; i >= 0; i--)
         {
             var tab = _liveOrder[i];
-            if (tab == ActiveTab || tab.IsPinned)
+            if (tab == ActiveTab || tab.IsPinned || tab.IsPlayingAudio)
             {
                 continue;
             }

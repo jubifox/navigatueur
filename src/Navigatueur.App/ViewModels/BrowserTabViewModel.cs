@@ -67,6 +67,10 @@ public partial class BrowserTabViewModel : ObservableObject
     [ObservableProperty]
     private bool isMuted;
 
+    /// <summary>Tracks the tab's actual audio output (not just the mute toggle) so the RAM-saving suspension logic can leave a tab currently playing sound alone.</summary>
+    [ObservableProperty]
+    private bool isPlayingAudio;
+
     /// <summary>Per-tab escape hatch for the rare page a domain-list ad blocker still breaks, without touching global settings.</summary>
     [ObservableProperty]
     private bool isAdBlockDisabled;
@@ -91,6 +95,7 @@ public partial class BrowserTabViewModel : ObservableObject
     private readonly EventHandler<CoreWebView2NavigationCompletedEventArgs> _onNavigationCompleted;
     private readonly EventHandler<CoreWebView2SourceChangedEventArgs> _onSourceChanged;
     private readonly EventHandler<object> _onDocumentTitleChanged;
+    private readonly EventHandler<object> _onIsDocumentPlayingAudioChanged;
 
     public BrowserTabViewModel(string initialUrl, TabManagerService tabManager)
     {
@@ -115,6 +120,7 @@ public partial class BrowserTabViewModel : ObservableObject
             Title = string.IsNullOrWhiteSpace(_coreWebView2?.DocumentTitle)
                 ? AddressBarText
                 : _coreWebView2!.DocumentTitle;
+        _onIsDocumentPlayingAudioChanged = (_, _) => IsPlayingAudio = _coreWebView2?.IsDocumentPlayingAudio ?? false;
 
         _tabManager.Groups.CollectionChanged += OnGroupsCollectionChanged;
         RefreshContextMenuItems();
@@ -267,6 +273,8 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.NavigationCompleted += _onNavigationCompleted;
         _coreWebView2.SourceChanged += _onSourceChanged;
         _coreWebView2.DocumentTitleChanged += _onDocumentTitleChanged;
+        _coreWebView2.IsDocumentPlayingAudioChanged += _onIsDocumentPlayingAudioChanged;
+        IsPlayingAudio = _coreWebView2.IsDocumentPlayingAudio;
     }
 
     /// <summary>Exposed so MainWindow can focus the actual embedded browser HWND before sending it Ctrl+F (native Chromium find-in-page).</summary>
@@ -292,8 +300,10 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.NavigationCompleted -= _onNavigationCompleted;
         _coreWebView2.SourceChanged -= _onSourceChanged;
         _coreWebView2.DocumentTitleChanged -= _onDocumentTitleChanged;
+        _coreWebView2.IsDocumentPlayingAudioChanged -= _onIsDocumentPlayingAudioChanged;
         _coreWebView2 = null;
         IsLoading = false;
+        IsPlayingAudio = false;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
