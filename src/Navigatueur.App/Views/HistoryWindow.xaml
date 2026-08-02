@@ -1,0 +1,34 @@
+<Window x:Class="Navigatueur.App.Views.HistoryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Historique" Width="480" Height="560"
+        Background="{DynamicResource ChromeBackgroundBrush}"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" Text="Historique" FontWeight="Bold" FontSize="16"
+                   Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,12" />
+
+        <Button DockPanel.Dock="Top" Content="Effacer l'historique" Padding="10,6" HorizontalAlignment="Left"
+                Margin="0,0,0,12" Click="OnClearClick" />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="EntriesList" ItemsSource="{Binding Entries}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,6"
+                                Cursor="Hand" MouseLeftButtonUp="OnEntryClick" Tag="{Binding Url}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource ChromeTextBrush}" />
+                                <TextBlock Text="{Binding Url}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" Margin="0,2,0,0" />
+                                <TextBlock Text="{Binding VisitedAt, StringFormat='{}{0:dd/MM/yyyy HH:mm}'}" FontSize="10"
+                                           Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.4" Margin="0,2,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

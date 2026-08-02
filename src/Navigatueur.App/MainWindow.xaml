@@ -134,6 +134,22 @@
                 <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenExtensionsClick" ToolTip="Extensions">
                     <Path Data="{StaticResource IconPuzzle}" Style="{StaticResource VectorIcon}" />
                 </Button>
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenMoreMenuClick" ToolTip="Plus d'outils">
+                    <Path Data="{StaticResource IconMoreVertical}" Style="{StaticResource VectorIcon}" />
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Historique" Click="OnOpenHistoryClick" />
+                            <MenuItem Header="Téléchargements" Click="OnToggleDownloadsClick" />
+                            <MenuItem Header="Enregistrer sous..." Click="OnSaveAsClick" />
+                            <MenuItem Header="Traduire la page" Click="OnTranslatePageClick" />
+                            <MenuItem Header="Rechercher dans la page" InputGestureText="Ctrl+F" Click="OnFindInPageClick" />
+                            <Separator />
+                            <MenuItem Header="Zoom +" Command="{Binding ActiveTab.ZoomInCommand}" />
+                            <MenuItem Header="Zoom -" Command="{Binding ActiveTab.ZoomOutCommand}" />
+                            <MenuItem Header="Réinitialiser le zoom" Command="{Binding ActiveTab.ResetZoomCommand}" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSettingsClick" ToolTip="Paramètres">
                     <Path Data="{StaticResource IconSettings}" Style="{StaticResource VectorIcon}" />
                 </Button>

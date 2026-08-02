@@ -147,6 +147,7 @@ public partial class BrowserTabView : UserControl
         webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
 
         ViewModel.AttachCoreWebView2(webView.CoreWebView2);
+        ViewModel.AttachZoomHost(webView);
         webView.CoreWebView2.Navigate(ViewModel.AddressBarText);
     }
 
@@ -298,6 +299,7 @@ public partial class BrowserTabView : UserControl
         _webView = null;
 
         ViewModel?.DetachCoreWebView2();
+        ViewModel?.DetachZoomHost();
         ContentHost.Children.Remove(webView);
         webView.Dispose();
     }

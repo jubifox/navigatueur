@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -15,9 +16,12 @@ public partial class MainWindow : Window
     private readonly Views.MusicOverlayWindow _musicOverlay = new();
     private Views.SettingsWindow? _settingsWindow;
     private Views.ExtensionsWindow? _extensionsWindow;
+    private Views.HistoryWindow? _historyWindow;
     private Views.PrivateBrowsingWindow? _privateWindow;
     private Point? _tabDragStart;
     private BrowserTabViewModel? _tabDragSource;
+    private System.Windows.Forms.NotifyIcon? _trayIcon;
+    private bool _forceClose;
 
     public MainWindow()
     {
@@ -65,9 +69,25 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Closing the main window normally quits the app. But if the floating
+    /// music overlay is currently up, closing instead backgrounds the browser
+    /// (hide + tray icon) so the mini-player keeps running — matching how
+    /// Spotify/Discord-style mini-players survive their host app closing.
+    /// </summary>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        if (!_forceClose && _musicOverlay.IsVisible)
+        {
+            e.Cancel = true;
+            Hide();
+            ShowTrayIcon();
+            return;
+        }
+
         _musicOverlay.ShutDown();
+        _trayIcon?.Dispose();
+        _trayIcon = null;
 
         var settings = AppServices.CurrentSettings;
         settings.WindowWidth = Width;
@@ -101,6 +121,48 @@ public partial class MainWindow : Window
         AppServices.Settings.Save(settings);
     }
 
+    private void ShowTrayIcon()
+    {
+        if (_trayIcon is not null)
+        {
+            _trayIcon.Visible = true;
+            return;
+        }
+
+        var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        var icon = exePath is not null
+            ? System.Drawing.Icon.ExtractAssociatedIcon(exePath)
+            : System.Drawing.SystemIcons.Application;
+
+        var menu = new System.Windows.Forms.ContextMenuStrip();
+        menu.Items.Add("Ouvrir Navigatueur", null, (_, _) => RestoreFromTray());
+        menu.Items.Add("Quitter", null, (_, _) =>
+        {
+            _forceClose = true;
+            Close();
+        });
+
+        _trayIcon = new System.Windows.Forms.NotifyIcon
+        {
+            Icon = icon,
+            Visible = true,
+            Text = "Navigatueur — lecture en cours",
+            ContextMenuStrip = menu,
+        };
+        _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+    }
+
+    private void RestoreFromTray()
+    {
+        Show();
+        WindowState = WindowState.Normal;
+        Activate();
+        if (_trayIcon is not null)
+        {
+            _trayIcon.Visible = false;
+        }
+    }
+
     private async void OnUpdateClick(object sender, RoutedEventArgs e)
     {
         var update = AppServices.Update;
@@ -128,6 +190,81 @@ public partial class MainWindow : Window
         else
         {
             _extensionsWindow.Activate();
+        }
+    }
+
+    private async void OnSaveAsClick(object sender, RoutedEventArgs e)
+    {
+        var activeTab = (DataContext as MainWindowViewModel)?.ActiveTab;
+        if (activeTab is null)
+        {
+            return;
+        }
+
+        var mhtml = await activeTab.CaptureMhtmlAsync();
+        if (mhtml is null)
+        {
+            MessageBox.Show(this, "Impossible d'enregistrer cette page.", "Enregistrer sous",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var suggestedName = SanitizeFileName(string.IsNullOrWhiteSpace(activeTab.Title) ? "page" : activeTab.Title);
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Page web (*.mhtml)|*.mhtml",
+            FileName = suggestedName,
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await File.WriteAllTextAsync(dialog.FileName, mhtml);
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(invalid, '_');
+        }
+
+        return name;
+    }
+
+    private void OnTranslatePageClick(object sender, RoutedEventArgs e) =>
+        ((DataContext as MainWindowViewModel)?.ActiveTab)?.TranslatePageCommand.Execute(null);
+
+    /// <summary>
+    /// Chromium already handles Ctrl+F natively (find-in-page toolbar) when
+    /// the embedded WebView2 has keyboard focus — that shortcut is never
+    /// routed through WPF at all, since WebView2 is a separate native HWND.
+    /// This menu entry just focuses the page and forwards the same keystroke
+    /// for people who'd rather click a menu item than remember the shortcut.
+    /// </summary>
+    private void OnFindInPageClick(object sender, RoutedEventArgs e)
+    {
+        var webView = (DataContext as MainWindowViewModel)?.ActiveTab?.WebViewControl;
+        if (webView is null)
+        {
+            return;
+        }
+
+        webView.Focus();
+        System.Windows.Forms.SendKeys.SendWait("^f");
+    }
+
+    private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if (_historyWindow is null)
+        {
+            _historyWindow = new Views.HistoryWindow { Owner = this };
+            _historyWindow.Closed += (_, _) => _historyWindow = null;
+            _historyWindow.Show();
+        }
+        else
+        {
+            _historyWindow.Activate();
         }
     }
 
@@ -163,6 +300,14 @@ public partial class MainWindow : Window
         DownloadsPopup.IsOpen = !DownloadsPopup.IsOpen;
 
     private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { ContextMenu: { } menu })
+        {
+            menu.IsOpen = true;
+        }
+    }
+
+    private void OnOpenMoreMenuClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { ContextMenu: { } menu })
         {

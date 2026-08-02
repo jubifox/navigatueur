@@ -35,5 +35,7 @@ public static class AppServices
 
     public static ExtensionService Extensions { get; } = new();
 
+    public static HistoryService History { get; } = new();
+
     public static TabManagerService TabManager { get; } = new(CurrentSettings);
 }

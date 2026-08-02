@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 using Navigatueur.App.Services;
 using Navigatueur.Core;
 
@@ -67,6 +69,7 @@ public partial class BrowserTabViewModel : ObservableObject
     private readonly HashSet<string> _phishingBypassedUrls = new();
 
     private CoreWebView2? _coreWebView2;
+    private WebView2? _zoomHost;
 
     private readonly EventHandler<CoreWebView2NavigationStartingEventArgs> _onNavigationStarting;
     private readonly EventHandler<CoreWebView2NavigationCompletedEventArgs> _onNavigationCompleted;
@@ -80,11 +83,16 @@ public partial class BrowserTabViewModel : ObservableObject
         _tabManager = tabManager;
 
         _onNavigationStarting = OnNavigationStarting;
-        _onNavigationCompleted = (_, _) =>
+        _onNavigationCompleted = (_, e) =>
         {
             IsLoading = false;
             CanGoBack = _coreWebView2?.CanGoBack ?? false;
             CanGoForward = _coreWebView2?.CanGoForward ?? false;
+
+            if (e.IsSuccess && _coreWebView2 is not null && !_tabManager.IsPrivate)
+            {
+                AppServices.History.Record(_coreWebView2.Source, _coreWebView2.DocumentTitle);
+            }
         };
         _onSourceChanged = (_, _) => AddressBarText = _coreWebView2?.Source ?? AddressBarText;
         _onDocumentTitleChanged = (_, _) =>
@@ -245,6 +253,14 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.DocumentTitleChanged += _onDocumentTitleChanged;
     }
 
+    /// <summary>Exposed so MainWindow can focus the actual embedded browser HWND before sending it Ctrl+F (native Chromium find-in-page).</summary>
+    public WebView2? WebViewControl => _zoomHost;
+
+    /// <summary>The WPF-level zoom control lives on the hosting WebView2 control, not CoreWebView2 — kept separate so this ViewModel only needs the Core surface for everything else.</summary>
+    public void AttachZoomHost(WebView2 webView) => _zoomHost = webView;
+
+    public void DetachZoomHost() => _zoomHost = null;
+
     /// <summary>
     /// Unhooks from the CoreWebView2 before it gets disposed, so the tab can
     /// be resumed later with a fresh WebView2 instance without leaking handlers.
@@ -304,5 +320,91 @@ public partial class BrowserTabViewModel : ObservableObject
         }
 
         _coreWebView2.Navigate(UrlHelper.Normalize(AddressBarText));
+    }
+
+    private const double ZoomStep = 0.1;
+    private const double MinZoom = 0.25;
+    private const double MaxZoom = 5.0;
+
+    [RelayCommand]
+    private void ZoomIn() => SetZoom((_zoomHost?.ZoomFactor ?? 1.0) + ZoomStep);
+
+    [RelayCommand]
+    private void ZoomOut() => SetZoom((_zoomHost?.ZoomFactor ?? 1.0) - ZoomStep);
+
+    [RelayCommand]
+    private void ResetZoom() => SetZoom(1.0);
+
+    private void SetZoom(double factor)
+    {
+        if (_zoomHost is null)
+        {
+            return;
+        }
+
+        _zoomHost.ZoomFactor = Math.Clamp(factor, MinZoom, MaxZoom);
+    }
+
+    /// <summary>
+    /// Opens the current page through Yandex's page-translation proxy
+    /// (translated.turbopages.org) into French — the same mechanism Yandex
+    /// Browser's own "translate this page" button uses. Passing only the
+    /// target language (no source) lets Yandex auto-detect the source
+    /// language, which is the reliable form of this URL; passing an explicit
+    /// "auto" source is not reliably honored.
+    /// </summary>
+    [RelayCommand]
+    private void TranslatePage()
+    {
+        if (_coreWebView2 is null || string.IsNullOrWhiteSpace(_coreWebView2.Source))
+        {
+            return;
+        }
+
+        var encoded = Uri.EscapeDataString(_coreWebView2.Source);
+        _coreWebView2.Navigate($"https://translate.yandex.com/translate?url={encoded}&lang=fr");
+    }
+
+    /// <summary>
+    /// Captures the current page as MHTML via the DevTools protocol for
+    /// "Enregistrer sous". The returned JSON's "data" field is decoded
+    /// defensively: some CDP builds return raw MHTML text, others base64 —
+    /// this checks for the MHTML signature first and only falls back to
+    /// base64-decoding if that signature isn't present.
+    /// </summary>
+    public async Task<string?> CaptureMhtmlAsync()
+    {
+        if (_coreWebView2 is null)
+        {
+            return null;
+        }
+
+        var resultJson = await _coreWebView2.CallDevToolsProtocolMethodAsync("Page.captureSnapshot", "{\"format\":\"mhtml\"}");
+        using var doc = JsonDocument.Parse(resultJson);
+        if (!doc.RootElement.TryGetProperty("data", out var dataProp))
+        {
+            return null;
+        }
+
+        var data = dataProp.GetString();
+        if (string.IsNullOrEmpty(data))
+        {
+            return null;
+        }
+
+        if (data.Contains("MIME-Version:", StringComparison.OrdinalIgnoreCase))
+        {
+            return data;
+        }
+
+        try
+        {
+            var bytes = Convert.FromBase64String(data);
+            return System.Text.Encoding.UTF8.GetString(bytes);
+        }
+        catch (FormatException)
+        {
+            return data;
+        }
     }
 }
