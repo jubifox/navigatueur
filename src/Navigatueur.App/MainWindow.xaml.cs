@@ -161,7 +161,7 @@ public partial class MainWindow : Window
         {
             From = TabColumnDefinition.Width,
             To = new GridLength(toPixels),
-            Duration = TimeSpan.FromMilliseconds(160),
+            Duration = TimeSpan.FromMilliseconds(220),
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
             FillBehavior = FillBehavior.Stop,
         };

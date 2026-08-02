@@ -1,8 +1,11 @@
 using System.ComponentModel;
 using System.IO;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Navigatueur.App.Services;
@@ -30,6 +33,11 @@ public partial class BrowserTabView : UserControl
 
     private static readonly string WarningFolder =
         Path.Combine(AppContext.BaseDirectory, "Resources", "Warning");
+
+    private static readonly string CursorImagePath =
+        Path.Combine(AppContext.BaseDirectory, "Resources", "Cursors", "cursor.png");
+
+    private static string? _cursorInjectionScript;
 
     private WebView2? _webView;
     private BrowserTabViewModel? _subscribedViewModel;
@@ -140,11 +148,18 @@ public partial class BrowserTabView : UserControl
             await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(cosmeticScript);
         }
 
+        var cursorScript = GetCursorInjectionScript();
+        if (!string.IsNullOrEmpty(cursorScript))
+        {
+            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(cursorScript);
+        }
+
         webView.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
         webView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
         webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
         webView.CoreWebView2.PermissionRequested += OnPermissionRequested;
         webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
+        webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
 
         ViewModel.AttachCoreWebView2(webView.CoreWebView2);
         ViewModel.AttachZoomHost(webView);
@@ -180,6 +195,112 @@ public partial class BrowserTabView : UserControl
           }
         })();
         """;
+    }
+
+    /// <summary>
+    /// Builds a script that (1) overrides the page's cursor via CSS to match
+    /// the app's own custom cursor, and (2) forwards throttled mousemove
+    /// coordinates to the host via the WebView2 postMessage bridge, so
+    /// <see cref="OnWebMessageReceived"/> can draw the same cursor-trail
+    /// effect over actual page content — WPF never sees mouse moves there
+    /// directly since WebView2 hosts it in a separate native child window.
+    /// Cached after the first successful read since the artwork never changes at runtime.
+    /// </summary>
+    private static string GetCursorInjectionScript()
+    {
+        if (_cursorInjectionScript is not null)
+        {
+            return _cursorInjectionScript;
+        }
+
+        string base64;
+        try
+        {
+            base64 = Convert.ToBase64String(File.ReadAllBytes(CursorImagePath));
+        }
+        catch (IOException)
+        {
+            _cursorInjectionScript = string.Empty;
+            return _cursorInjectionScript;
+        }
+
+        _cursorInjectionScript = $$"""
+            (function() {
+              var style = document.createElement('style');
+              style.textContent = '*, *::before, *::after { cursor: url("data:image/png;base64,{{base64}}") 2 2, auto !important; }';
+              document.documentElement.appendChild(style);
+
+              var last = 0;
+              document.addEventListener('mousemove', function(e) {
+                var now = Date.now();
+                if (now - last < 20) return;
+                last = now;
+                if (window.chrome && window.chrome.webview) {
+                  window.chrome.webview.postMessage({ type: 'navigatueur-cursor-trail', x: e.clientX, y: e.clientY });
+                }
+              }, true);
+            })();
+            """;
+        return _cursorInjectionScript;
+    }
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("type", out var typeProp) || typeProp.GetString() != "navigatueur-cursor-trail")
+            {
+                return;
+            }
+
+            SpawnTrailDot(root.GetProperty("x").GetDouble(), root.GetProperty("y").GetDouble());
+        }
+        catch (JsonException)
+        {
+            // Malformed/unexpected message — not worth surfacing for a cosmetic feature.
+        }
+    }
+
+    /// <summary>
+    /// clientX/clientY are in CSS/viewport pixels, which shrink relative to
+    /// the WebView2 control's actual on-screen size as ZoomFactor increases
+    /// (more zoom = fewer CSS pixels fit the same physical viewport) — so
+    /// they need scaling by the current zoom to land in the right spot on
+    /// this control-relative overlay.
+    /// </summary>
+    private void SpawnTrailDot(double clientX, double clientY)
+    {
+        var zoom = _webView?.ZoomFactor ?? 1.0;
+        var position = new Point(clientX * zoom, clientY * zoom);
+
+        var accentColor = Application.Current.Resources["AccentBrush"] is SolidColorBrush accentBrush
+            ? accentBrush.Color
+            : Colors.White;
+
+        const double size = 8;
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = size,
+            Height = size,
+            Fill = new SolidColorBrush(accentColor),
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(dot, position.X - size / 2);
+        Canvas.SetTop(dot, position.Y - size / 2);
+
+        var scale = new ScaleTransform(1, 1, size / 2, size / 2);
+        dot.RenderTransform = scale;
+        CursorTrailOverlay.Children.Add(dot);
+
+        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(450)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+        var shrink = new DoubleAnimation(1, 0.2, TimeSpan.FromMilliseconds(450));
+        fade.Completed += (_, _) => CursorTrailOverlay.Children.Remove(dot);
+
+        dot.BeginAnimation(UIElement.OpacityProperty, fade);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
     }
 
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e) =>
