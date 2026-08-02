@@ -163,12 +163,15 @@ public partial class MainWindow : Window
 
     private void AnimateTabColumnWidth(double toPixels)
     {
+        // EaseOut front-loads most of the size change into the first frames, which
+        // read as an instant "pop" to the eye rather than a glide — EaseInOut spreads
+        // the motion evenly across the whole duration instead.
         var animation = new GridLengthAnimation
         {
             From = TabColumnDefinition.Width,
             To = new GridLength(toPixels),
-            Duration = TimeSpan.FromMilliseconds(220),
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            Duration = TimeSpan.FromMilliseconds(280),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
             FillBehavior = FillBehavior.Stop,
         };
 

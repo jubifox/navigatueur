@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Text.Json;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Web.WebView2.Core;
@@ -75,6 +78,9 @@ public partial class BrowserTabViewModel : ObservableObject
     [ObservableProperty]
     private string? siteAccentColorHex;
 
+    [ObservableProperty]
+    private ImageSource? favicon;
+
     /// <summary>Per-tab escape hatch for the rare page a domain-list ad blocker still breaks, without touching global settings.</summary>
     [ObservableProperty]
     private bool isAdBlockDisabled;
@@ -100,6 +106,7 @@ public partial class BrowserTabViewModel : ObservableObject
     private readonly EventHandler<CoreWebView2SourceChangedEventArgs> _onSourceChanged;
     private readonly EventHandler<object> _onDocumentTitleChanged;
     private readonly EventHandler<object> _onIsDocumentPlayingAudioChanged;
+    private readonly EventHandler<object> _onFaviconChanged;
 
     public BrowserTabViewModel(string initialUrl, TabManagerService tabManager)
     {
@@ -134,6 +141,7 @@ public partial class BrowserTabViewModel : ObservableObject
                 ? AddressBarText
                 : _coreWebView2!.DocumentTitle;
         _onIsDocumentPlayingAudioChanged = (_, _) => IsPlayingAudio = _coreWebView2?.IsDocumentPlayingAudio ?? false;
+        _onFaviconChanged = (_, _) => _ = RefreshFaviconAsync();
 
         _tabManager.Groups.CollectionChanged += OnGroupsCollectionChanged;
         RefreshContextMenuItems();
@@ -288,6 +296,8 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.DocumentTitleChanged += _onDocumentTitleChanged;
         _coreWebView2.IsDocumentPlayingAudioChanged += _onIsDocumentPlayingAudioChanged;
         IsPlayingAudio = _coreWebView2.IsDocumentPlayingAudio;
+        _coreWebView2.FaviconChanged += _onFaviconChanged;
+        _ = RefreshFaviconAsync();
     }
 
     /// <summary>Exposed so MainWindow can focus the actual embedded browser HWND before sending it Ctrl+F (native Chromium find-in-page).</summary>
@@ -314,10 +324,47 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.SourceChanged -= _onSourceChanged;
         _coreWebView2.DocumentTitleChanged -= _onDocumentTitleChanged;
         _coreWebView2.IsDocumentPlayingAudioChanged -= _onIsDocumentPlayingAudioChanged;
+        _coreWebView2.FaviconChanged -= _onFaviconChanged;
         _coreWebView2 = null;
         IsLoading = false;
         IsPlayingAudio = false;
         SiteAccentColorHex = null;
+        Favicon = null;
+    }
+
+    private async Task RefreshFaviconAsync()
+    {
+        if (_coreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = await _coreWebView2.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png);
+            if (stream.Length == 0)
+            {
+                Favicon = null;
+                return;
+            }
+
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            memory.Position = 0;
+
+            var bitmap = new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.StreamSource = memory;
+            bitmap.EndInit();
+            bitmap.Freeze();
+            Favicon = bitmap;
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or System.Runtime.InteropServices.COMException or NotSupportedException)
+        {
+            // Missing/unsupported favicon format for this page — not worth surfacing.
+            Favicon = null;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
