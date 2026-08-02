@@ -1,7 +1,7 @@
 <Window x:Class="Navigatueur.App.Views.ExtensionsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Extensions" Width="440" Height="520"
+        Title="Extensions" Width="460" Height="640"
         Background="{DynamicResource ChromeBackgroundBrush}"
         WindowStartupLocation="CenterOwner">
     <DockPanel Margin="16">
@@ -19,21 +19,62 @@
                    TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed" />
 
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Extensions}">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,8">
-                            <DockPanel>
-                                <Button DockPanel.Dock="Right" Content="Supprimer" FontSize="11" Padding="8,4"
-                                        Command="{Binding RemoveCommand}" />
-                                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" />
-                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
-                            </DockPanel>
-                        </Border>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <StackPanel>
+                <TextBlock Text="Extensions recommandées" FontWeight="Bold" FontSize="13"
+                           Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+                <ItemsControl ItemsSource="{Binding RecommendedItems}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" FontSize="11" Padding="8,4" VerticalAlignment="Center"
+                                            Command="{Binding InstallCommand}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="Content" Value="Installer" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsInstalling}" Value="True">
+                                                        <Setter Property="Content" Value="Installation..." />
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsInstalled}" Value="True">
+                                                        <Setter Property="Content" Value="Installé" />
+                                                        <Setter Property="IsEnabled" Value="False" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <StackPanel VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource ChromeTextBrush}" />
+                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="11"
+                                                   Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.7" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Extensions installées" FontWeight="Bold" FontSize="13"
+                           Foreground="{DynamicResource ChromeTextBrush}" Margin="0,12,0,8" />
+                <ItemsControl ItemsSource="{Binding Extensions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="4" Padding="10" Margin="0,0,0,8">
+                                <DockPanel>
+                                    <Button DockPanel.Dock="Right" Content="Supprimer" FontSize="11" Padding="8,4"
+                                            Command="{Binding RemoveCommand}" />
+                                    <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
         </ScrollViewer>
     </DockPanel>
 </Window>
