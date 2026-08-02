@@ -75,11 +75,11 @@
                         Visibility="{Binding HasSession, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{Binding Title}" Foreground="{Binding ForegroundBrush}" FontWeight="Bold" FontSize="16"
                            TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding Artist}" Foreground="{Binding ForegroundBrush}" Opacity="0.8" FontSize="14"
-                           TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="{Binding Album}" Foreground="{Binding ForegroundBrush}" Opacity="0.65" FontSize="12"
-                           TextTrimming="CharacterEllipsis" Margin="0,0,0,6"
+                <TextBlock Text="{Binding Album}" Foreground="{Binding ForegroundBrush}" Opacity="0.7" FontSize="13"
+                           TextTrimming="CharacterEllipsis"
                            Visibility="{Binding HasAlbum, Converter={StaticResource BoolToVis}}" />
+                <TextBlock Text="{Binding Artist}" Foreground="{Binding ForegroundBrush}" Opacity="0.65" FontSize="12"
+                           TextTrimming="CharacterEllipsis" Margin="0,0,0,6" />
 
                 <ProgressBar Height="4" Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}"
                              Background="#33000000" Foreground="{Binding ForegroundBrush}" BorderThickness="0" Margin="0,0,0,7" />

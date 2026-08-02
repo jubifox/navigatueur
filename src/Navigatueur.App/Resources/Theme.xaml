@@ -19,9 +19,16 @@
       (buttons, text boxes, menus...) without needing per-control styles.
       Fallback chain covers machines without Cascadia Code installed.
     -->
+    <!--
+      "Cascadia Code SemiBold" is its own distinct installed font family (not a
+      weight variant of "Cascadia Code") — also setting FontWeight="SemiBold" on
+      top of it asks WPF to find a semi-bold FACE *within* that already-semi-bold
+      family, which it can't satisfy, and it silently fell back past the whole
+      list to Segoe UI instead of ever rendering as Cascadia Code at all. Naming
+      the family directly, with no FontWeight override, renders reliably.
+    -->
     <Style TargetType="{x:Type Window}">
-        <Setter Property="FontFamily" Value="Cascadia Code SemiBold, Cascadia Code, Consolas, Segoe UI" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontFamily" Value="Cascadia Code SemiBold, Consolas, Segoe UI" />
         <Setter Property="Cursor" Value="{DynamicResource AppCursor}" />
     </Style>
 

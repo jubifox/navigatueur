@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Navigatueur.App.Animation;
 using Navigatueur.App.Models;
 using Navigatueur.App.Services;
@@ -25,6 +26,7 @@ public partial class MainWindow : Window
     private BrowserTabViewModel? _tabDragSource;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _forceClose;
+    private readonly DispatcherTimer _autosaveTimer;
 
     public MainWindow()
     {
@@ -43,7 +45,9 @@ public partial class MainWindow : Window
             Top = settings.WindowTop.Value;
         }
 
-        DataContext = new MainWindowViewModel(AppServices.TabManager);
+        var viewModel = new MainWindowViewModel(AppServices.TabManager);
+        DataContext = viewModel;
+        viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         if (AppServices.Settings.IsFirstRun)
         {
@@ -53,6 +57,10 @@ public partial class MainWindow : Window
         ApplyAddressBarPosition();
         AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
 
+        _autosaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
+        _autosaveTimer.Tick += (_, _) => SaveSessionState();
+        _autosaveTimer.Start();
+
         AppServices.RequestForceQuit = () =>
         {
             _forceClose = true;
@@ -60,6 +68,17 @@ public partial class MainWindow : Window
         };
 
         Closing += OnClosing;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(MainWindowViewModel.IsSidebarPinned))
+        {
+            return;
+        }
+
+        var vm = (MainWindowViewModel)DataContext;
+        AnimateTabColumnWidth(vm.IsSidebarPinned ? SidebarExpandedWidth : SidebarCollapsedWidth);
     }
 
     private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -94,9 +113,20 @@ public partial class MainWindow : Window
     private DateTime _lastTrailSpawn = DateTime.MinValue;
     private static readonly TimeSpan TrailSpawnInterval = TimeSpan.FromMilliseconds(20);
 
-    /// <summary>osu!-style fading dot trail. Only ever sees moves over the app's own WPF chrome (see the XAML comment above CursorTrailCanvas) — that's an inherent WebView2 limitation, not a bug.</summary>
+    /// <summary>
+    /// Single Window-level PreviewMouseMove handler doing two unrelated jobs:
+    /// the cursor trail, and driving the sidebar hover expand/collapse via a
+    /// direct geometric position check against TabColumnHost's live bounds —
+    /// far more reliable than that element's own MouseEnter/Leave, which
+    /// depends on precise hit-test boundaries that proved flaky in practice.
+    /// Both only ever see moves over the app's own WPF chrome; WebView2 hosts
+    /// page content in a separate native child window that never routes
+    /// mouse input through WPF at all.
+    /// </summary>
     private void OnWindowMouseMoveForTrail(object sender, MouseEventArgs e)
     {
+        UpdateSidebarHoverState(e);
+
         var now = DateTime.UtcNow;
         if (now - _lastTrailSpawn < TrailSpawnInterval)
         {
@@ -137,7 +167,7 @@ public partial class MainWindow : Window
     private const double SidebarCollapsedWidth = 52;
     private const double SidebarExpandedWidth = 220;
 
-    private void OnTabColumnMouseEnter(object sender, MouseEventArgs e)
+    private void UpdateSidebarHoverState(MouseEventArgs e)
     {
         var vm = (MainWindowViewModel)DataContext;
         if (vm.IsSidebarPinned)
@@ -145,20 +175,17 @@ public partial class MainWindow : Window
             return;
         }
 
-        vm.IsSidebarExpanded = true;
-        AnimateTabColumnWidth(SidebarExpandedWidth);
-    }
+        var position = e.GetPosition(TabColumnHost);
+        var isOver = position.X >= 0 && position.X <= TabColumnHost.ActualWidth
+            && position.Y >= 0 && position.Y <= TabColumnHost.ActualHeight;
 
-    private void OnTabColumnMouseLeave(object sender, MouseEventArgs e)
-    {
-        var vm = (MainWindowViewModel)DataContext;
-        if (vm.IsSidebarPinned)
+        if (isOver == vm.IsSidebarExpanded)
         {
             return;
         }
 
-        vm.IsSidebarExpanded = false;
-        AnimateTabColumnWidth(SidebarCollapsedWidth);
+        vm.IsSidebarExpanded = isOver;
+        AnimateTabColumnWidth(isOver ? SidebarExpandedWidth : SidebarCollapsedWidth);
     }
 
     private void AnimateTabColumnWidth(double toPixels)

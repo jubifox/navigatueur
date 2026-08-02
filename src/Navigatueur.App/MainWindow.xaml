@@ -234,12 +234,14 @@
 
             <!--
               Vertical tab strip: compact by default, expands on hover unless pinned
-              (Zen-browser-style). Background must be a real brush (not left unset) —
-              an element with no Background is only hit-testable over its children's
-              own painted areas, so MouseEnter/Leave would silently fail to fire over
-              any empty gutter space between/around the tab buttons.
+              (Zen-browser-style). Driven by a geometric position check in the
+              Window-level PreviewMouseMove handler (OnWindowMouseMoveForSidebarHover)
+              rather than this element's own MouseEnter/Leave — element-level hit-testing
+              proved unreliable here (see git history), and the Window already has a
+              PreviewMouseMove hook for the cursor trail that reliably fires across the
+              whole WPF chrome area.
             -->
-            <Border Grid.Column="0" Background="Transparent" MouseEnter="OnTabColumnMouseEnter" MouseLeave="OnTabColumnMouseLeave">
+            <Border x:Name="TabColumnHost" Grid.Column="0" Background="Transparent">
                 <DockPanel>
                 <Border x:Name="AddressBarSidebarSlot" DockPanel.Dock="Top" Margin="4,4,4,2" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
