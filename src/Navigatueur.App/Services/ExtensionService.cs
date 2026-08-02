@@ -80,10 +80,15 @@ public partial class ExtensionService : ObservableObject
         }
     }
 
-    /// <summary>Called once the first tab's CoreWebView2 exists — all tabs share the same profile, so this only needs to happen once.</summary>
+    /// <summary>
+    /// Called whenever a tab's CoreWebView2 loads (including resuming from suspension).
+    /// The profile handle only stays valid while its originating WebView2 control is
+    /// alive, so this keeps _profile pointed at a recently-attached control rather than
+    /// caching the very first one forever (which goes stale as soon as that tab suspends).
+    /// </summary>
     public async void AttachProfile(CoreWebView2Profile profile)
     {
-        if (_profile is not null)
+        if (ReferenceEquals(_profile, profile))
         {
             return;
         }
@@ -92,16 +97,29 @@ public partial class ExtensionService : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Prefers the currently active tab's live profile handle, falling back to the last-attached one.</summary>
+    private CoreWebView2Profile? ResolveLiveProfile()
+    {
+        var activeProfile = AppServices.TabManager.ActiveTab?.CurrentProfile;
+        if (activeProfile is not null)
+        {
+            _profile = activeProfile;
+        }
+
+        return _profile;
+    }
+
     public async Task RefreshAsync()
     {
-        if (_profile is null)
+        var profile = ResolveLiveProfile();
+        if (profile is null)
         {
             return;
         }
 
         try
         {
-            var list = await _profile.GetBrowserExtensionsAsync();
+            var list = await profile.GetBrowserExtensionsAsync();
             Extensions.Clear();
             foreach (var extension in list)
             {
@@ -118,7 +136,8 @@ public partial class ExtensionService : ObservableObject
 
     public async Task<bool> AddExtensionAsync(string unpackedFolderPath)
     {
-        if (_profile is null)
+        var profile = ResolveLiveProfile();
+        if (profile is null)
         {
             LastError = "Aucun onglet n'est encore chargé — ouvre un onglet puis réessaie.";
             return false;
@@ -126,13 +145,13 @@ public partial class ExtensionService : ObservableObject
 
         try
         {
-            await _profile.AddBrowserExtensionAsync(unpackedFolderPath);
+            await profile.AddBrowserExtensionAsync(unpackedFolderPath);
             await RefreshAsync();
             return true;
         }
         catch (Exception ex)
         {
-            LastError = ex.Message;
+            LastError = "Impossible d'installer l'extension — ouvre/active un onglet non suspendu puis réessaie. (" + ex.Message + ")";
             return false;
         }
     }
@@ -153,7 +172,7 @@ public partial class ExtensionService : ObservableObject
     /// <summary>Downloads a recommended extension's zip, extracts it, locates its manifest.json (some zips wrap the extension in a subfolder), and installs it.</summary>
     public async Task<bool> InstallRecommendedAsync(RecommendedExtension recommended)
     {
-        if (_profile is null)
+        if (ResolveLiveProfile() is null)
         {
             LastError = "Aucun onglet n'est encore chargé — ouvre un onglet puis réessaie.";
             return false;

@@ -231,6 +231,9 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2?.Reload();
     }
 
+    /// <summary>Live profile handle, only valid while this tab's WebView2 is loaded (not suspended/disposed).</summary>
+    public CoreWebView2Profile? CurrentProfile => _coreWebView2?.Profile;
+
     public void AttachCoreWebView2(CoreWebView2 coreWebView2)
     {
         _coreWebView2 = coreWebView2;
