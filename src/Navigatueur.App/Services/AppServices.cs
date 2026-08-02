@@ -38,4 +38,15 @@ public static class AppServices
     public static HistoryService History { get; } = new();
 
     public static TabManagerService TabManager { get; } = new(CurrentSettings);
+
+    /// <summary>
+    /// Set by MainWindow's constructor to its own "really quit" logic (bypassing
+    /// the tray-background guard). Callers that need a guaranteed real exit —
+    /// e.g. UpdateService before handing off to the new installer — must use
+    /// this instead of Application.Current.Shutdown(): WPF cancels shutdown
+    /// entirely if any window's Closing handler sets e.Cancel, which ours does
+    /// whenever the music overlay is open, silently leaving the app running
+    /// while a second installer launches against it.
+    /// </summary>
+    public static Action? RequestForceQuit { get; set; }
 }

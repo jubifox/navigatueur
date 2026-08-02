@@ -90,7 +90,11 @@ public partial class MusicControllerService : ObservableObject
         _session = _manager.GetCurrentSession();
         if (_session is null)
         {
-            HasSession = false;
+            if (HasSession)
+            {
+                ClearNowPlaying();
+            }
+
             return;
         }
 
@@ -118,8 +122,32 @@ public partial class MusicControllerService : ObservableObject
         }
         catch (Exception)
         {
-            HasSession = false;
+            ClearNowPlaying();
         }
+    }
+
+    /// <summary>
+    /// Resets every displayed field to its blank/default state. Previously,
+    /// losing the SMTC session (media app closed, or playback simply
+    /// stopped) only flipped <see cref="HasSession"/> to false — nothing in
+    /// the overlay's XAML actually reads that property, so the title,
+    /// artist, cover and progress bar kept showing the last track forever,
+    /// with the transport buttons silently no-oping against a null session.
+    /// </summary>
+    private void ClearNowPlaying()
+    {
+        HasSession = false;
+        Title = string.Empty;
+        Artist = string.Empty;
+        Album = string.Empty;
+        HasAlbum = false;
+        IsPlaying = false;
+        Progress = 0;
+        Cover = null;
+        BackgroundBrush = new SolidColorBrush(FallbackBackground);
+        ForegroundBrush = new SolidColorBrush(FallbackForeground);
+        FadeBrush = MakeFadeBrush(FallbackBackground);
+        _lastTrackKey = null;
     }
 
     /// <summary>

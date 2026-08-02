@@ -126,7 +126,20 @@ public partial class UpdateService : ObservableObject
             }
 
             Process.Start(new ProcessStartInfo(tempPath) { UseShellExecute = true });
-            Application.Current.Shutdown();
+
+            // Application.Current.Shutdown() is not safe here: WPF cancels shutdown
+            // entirely if any open window's Closing handler sets e.Cancel — which
+            // MainWindow's does whenever the music overlay is visible (it backgrounds
+            // to tray instead of exiting). That would leave this instance silently
+            // running while the installer we just launched fights it for file locks.
+            if (AppServices.RequestForceQuit is { } requestForceQuit)
+            {
+                requestForceQuit();
+            }
+            else
+            {
+                Application.Current.Shutdown();
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
         {

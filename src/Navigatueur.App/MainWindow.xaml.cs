@@ -53,6 +53,12 @@ public partial class MainWindow : Window
         ApplyAddressBarPosition();
         AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
 
+        AppServices.RequestForceQuit = () =>
+        {
+            _forceClose = true;
+            Close();
+        };
+
         Closing += OnClosing;
     }
 

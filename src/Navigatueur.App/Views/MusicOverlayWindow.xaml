@@ -57,7 +57,22 @@
             <Button Content="✕" Style="{StaticResource IconButton}" Foreground="{Binding ForegroundBrush}"
                     Click="OnCloseClick" Margin="0,8,8,0" HorizontalAlignment="Right" VerticalAlignment="Top" />
 
-            <StackPanel VerticalAlignment="Bottom" Margin="14,0,160,12">
+            <TextBlock Text="Aucune lecture en cours" Foreground="{Binding ForegroundBrush}" Opacity="0.7"
+                       FontSize="14" VerticalAlignment="Center" Margin="14,0,160,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasSession}" Value="False">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <StackPanel VerticalAlignment="Bottom" Margin="14,0,160,12"
+                        Visibility="{Binding HasSession, Converter={StaticResource BoolToVis}}">
                 <TextBlock Text="{Binding Title}" Foreground="{Binding ForegroundBrush}" FontWeight="Bold" FontSize="16"
                            TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Artist}" Foreground="{Binding ForegroundBrush}" Opacity="0.8" FontSize="14"
