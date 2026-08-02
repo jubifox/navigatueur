@@ -3,7 +3,7 @@
 ; self-contained publish output.
 
 #define MyAppName "Navigatueur"
-#define MyAppVersion "0.3.1"
+#define MyAppVersion "0.3.2"
 #define MyAppPublisher "Navigatueur"
 #define MyAppExeName "Navigatueur.exe"
 #define MyPublishDir "..\publish\app"

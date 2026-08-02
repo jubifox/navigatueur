@@ -36,6 +36,52 @@ public partial class SettingsWindow : Window
 
         HueSlider.Value = EstimateHue(AppServices.Theme.AccentColorHex);
         _isLoaded = true;
+
+        CurrentVersionText.Text = $"Version actuelle : {AppServices.Update.CurrentVersion}";
+        InstallUpdateButton.Visibility = AppServices.Update.IsUpdateAvailable ? Visibility.Visible : Visibility.Collapsed;
+        if (AppServices.Update.IsUpdateAvailable)
+        {
+            UpdateStatusText.Text = $"Une nouvelle version ({AppServices.Update.LatestVersion}) est disponible.";
+        }
+    }
+
+    private async void OnCheckForUpdatesClick(object sender, RoutedEventArgs e)
+    {
+        CheckForUpdatesButton.IsEnabled = false;
+        UpdateStatusText.Text = "Vérification en cours...";
+        try
+        {
+            await AppServices.Update.CheckForUpdateAsync();
+            if (AppServices.Update.IsUpdateAvailable)
+            {
+                UpdateStatusText.Text = $"Une nouvelle version ({AppServices.Update.LatestVersion}) est disponible.";
+                InstallUpdateButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                UpdateStatusText.Text = "Navigatueur est à jour.";
+                InstallUpdateButton.Visibility = Visibility.Collapsed;
+            }
+        }
+        finally
+        {
+            CheckForUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnInstallUpdateClick(object sender, RoutedEventArgs e)
+    {
+        var result = MessageBox.Show(
+            this,
+            $"Une nouvelle version ({AppServices.Update.LatestVersion}) est disponible. Télécharger et installer maintenant ? L'application va se fermer pendant l'installation.",
+            "Mise à jour disponible",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            await AppServices.Update.DownloadAndInstallAsync();
+        }
     }
 
     private void OnHueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
