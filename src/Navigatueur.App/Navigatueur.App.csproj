@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Navigatueur.App</RootNamespace>
     <AssemblyName>Navigatueur</AssemblyName>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
   </PropertyGroup>
 
@@ -45,6 +45,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\Warning\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Cursors\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

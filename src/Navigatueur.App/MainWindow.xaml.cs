@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Navigatueur.App.Animation;
 using Navigatueur.App.Models;
@@ -82,6 +83,49 @@ public partial class MainWindow : Window
             _ => AddressBarTopSlot,
         };
         target.Child = AddressBarTextBox;
+    }
+
+    private DateTime _lastTrailSpawn = DateTime.MinValue;
+    private static readonly TimeSpan TrailSpawnInterval = TimeSpan.FromMilliseconds(20);
+
+    /// <summary>osu!-style fading dot trail. Only ever sees moves over the app's own WPF chrome (see the XAML comment above CursorTrailCanvas) — that's an inherent WebView2 limitation, not a bug.</summary>
+    private void OnWindowMouseMoveForTrail(object sender, MouseEventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastTrailSpawn < TrailSpawnInterval)
+        {
+            return;
+        }
+
+        _lastTrailSpawn = now;
+
+        var position = e.GetPosition(CursorTrailCanvas);
+        var accentColor = Application.Current.Resources["AccentBrush"] is SolidColorBrush accentBrush
+            ? accentBrush.Color
+            : Colors.White;
+
+        const double size = 8;
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = size,
+            Height = size,
+            Fill = new SolidColorBrush(accentColor),
+            IsHitTestVisible = false,
+        };
+        Canvas.SetLeft(dot, position.X - size / 2);
+        Canvas.SetTop(dot, position.Y - size / 2);
+
+        var scale = new ScaleTransform(1, 1, size / 2, size / 2);
+        dot.RenderTransform = scale;
+        CursorTrailCanvas.Children.Add(dot);
+
+        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(450)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
+        var shrink = new DoubleAnimation(1, 0.2, TimeSpan.FromMilliseconds(450));
+        fade.Completed += (_, _) => CursorTrailCanvas.Children.Remove(dot);
+
+        dot.BeginAnimation(UIElement.OpacityProperty, fade);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
     }
 
     private const double SidebarCollapsedWidth = 52;

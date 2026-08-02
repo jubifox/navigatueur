@@ -8,7 +8,8 @@
         Title="Navigatueur"
         Background="{DynamicResource ChromeBackgroundBrush}"
         WindowStyle="None" ResizeMode="CanResize"
-        Height="800" Width="1280">
+        Height="800" Width="1280"
+        PreviewMouseMove="OnWindowMouseMoveForTrail">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
@@ -256,9 +257,33 @@
                                     </Button.ContextMenu>
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Padding="8,6" CornerRadius="4">
-                                                <ContentPresenter />
-                                            </Border>
+                                            <Grid>
+                                                <Border Padding="8,6" CornerRadius="4">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <Border x:Name="GroupHoverOverlay" CornerRadius="4" Opacity="0" IsHitTestVisible="False"
+                                                        Background="{DynamicResource ChromeBorderBrush}" />
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="GroupHoverOverlay" Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.5" Duration="0:0:0.12" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="GroupHoverOverlay" Storyboard.TargetProperty="Opacity"
+                                                                                 To="0" Duration="0:0:0.18" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Button.Template>
                                     <DockPanel>
@@ -321,7 +346,10 @@
                                         PreviewMouseMove="OnTabPreviewMouseMove"
                                         Drop="OnTabDrop">
                                     <Button.RenderTransform>
-                                        <TranslateTransform Y="-6" />
+                                        <TransformGroup>
+                                            <ScaleTransform ScaleX="1" ScaleY="1" />
+                                            <TranslateTransform Y="-6" />
+                                        </TransformGroup>
                                     </Button.RenderTransform>
                                     <Button.Triggers>
                                         <EventTrigger RoutedEvent="Loaded">
@@ -329,7 +357,7 @@
                                                 <Storyboard>
                                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                                      From="0" To="1" Duration="0:0:0.15" />
-                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Y"
+                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Children[1].Y"
                                                                      From="-6" To="0" Duration="0:0:0.15">
                                                         <DoubleAnimation.EasingFunction>
                                                             <QuadraticEase EasingMode="EaseOut" />
@@ -352,6 +380,36 @@
                                                 <DataTrigger Binding="{Binding IsPinned}" Value="True">
                                                     <Setter Property="Margin" Value="4,1" />
                                                 </DataTrigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Children[0].ScaleX"
+                                                                                 To="1.03" Duration="0:0:0.12">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Children[0].ScaleY"
+                                                                                 To="1.03" Duration="0:0:0.12">
+                                                                    <DoubleAnimation.EasingFunction>
+                                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                                    </DoubleAnimation.EasingFunction>
+                                                                </DoubleAnimation>
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Children[0].ScaleX"
+                                                                                 To="1" Duration="0:0:0.15" />
+                                                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.Children[0].ScaleY"
+                                                                                 To="1" Duration="0:0:0.15" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
@@ -367,10 +425,34 @@
                                     </Button.ContextMenu>
                                     <Button.Template>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Padding="8,6" CornerRadius="4"
-                                                    Background="{Binding IsActive, Converter={StaticResource ActiveTabBackgroundConverter}}">
-                                                <ContentPresenter />
-                                            </Border>
+                                            <Grid>
+                                                <Border Padding="8,6" CornerRadius="4"
+                                                        Background="{Binding IsActive, Converter={StaticResource ActiveTabBackgroundConverter}}">
+                                                    <ContentPresenter />
+                                                </Border>
+                                                <Border x:Name="TabHoverOverlay" CornerRadius="4" Opacity="0" IsHitTestVisible="False"
+                                                        Background="{DynamicResource ChromeBorderBrush}" />
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Trigger.EnterActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="TabHoverOverlay" Storyboard.TargetProperty="Opacity"
+                                                                                 To="0.5" Duration="0:0:0.12" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.EnterActions>
+                                                    <Trigger.ExitActions>
+                                                        <BeginStoryboard>
+                                                            <Storyboard>
+                                                                <DoubleAnimation Storyboard.TargetName="TabHoverOverlay" Storyboard.TargetProperty="Opacity"
+                                                                                 To="0" Duration="0:0:0.18" />
+                                                            </Storyboard>
+                                                        </BeginStoryboard>
+                                                    </Trigger.ExitActions>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
                                         </ControlTemplate>
                                     </Button.Template>
                                     <DockPanel>
@@ -480,5 +562,13 @@
         <Border Grid.Row="3" x:Name="AddressBarBottomSlot" Padding="6"
                 BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,1,0,0" />
     </Grid>
+
+    <!--
+      Cursor trail: fading dots follow the mouse over the app's own WPF chrome
+      (toolbar, tab strip, title bar). WebView2 hosts the actual page content
+      in a separate native child window, so mouse moves over a page itself
+      never reach WPF's routed events — the trail is chrome-only by nature.
+    -->
+    <Canvas x:Name="CursorTrailCanvas" IsHitTestVisible="False" />
     </Grid>
 </Window>
