@@ -71,6 +71,10 @@ public partial class BrowserTabViewModel : ObservableObject
     [ObservableProperty]
     private bool isPlayingAudio;
 
+    /// <summary>The current page's declared &lt;meta name="theme-color"&gt; (hex or rgb()), or null if it doesn't have one. Drives the chrome background's top-to-gray gradient.</summary>
+    [ObservableProperty]
+    private string? siteAccentColorHex;
+
     /// <summary>Per-tab escape hatch for the rare page a domain-list ad blocker still breaks, without touching global settings.</summary>
     [ObservableProperty]
     private bool isAdBlockDisabled;
@@ -110,9 +114,18 @@ public partial class BrowserTabViewModel : ObservableObject
             CanGoBack = _coreWebView2?.CanGoBack ?? false;
             CanGoForward = _coreWebView2?.CanGoForward ?? false;
 
-            if (e.IsSuccess && _coreWebView2 is not null && !_tabManager.IsPrivate)
+            if (e.IsSuccess && _coreWebView2 is not null)
             {
-                AppServices.History.Record(_coreWebView2.Source, _coreWebView2.DocumentTitle);
+                if (!_tabManager.IsPrivate)
+                {
+                    AppServices.History.Record(_coreWebView2.Source, _coreWebView2.DocumentTitle);
+                }
+
+                _ = RefreshSiteAccentColorAsync();
+            }
+            else
+            {
+                SiteAccentColorHex = null;
             }
         };
         _onSourceChanged = (_, _) => AddressBarText = _coreWebView2?.Source ?? AddressBarText;
@@ -304,6 +317,7 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2 = null;
         IsLoading = false;
         IsPlayingAudio = false;
+        SiteAccentColorHex = null;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoBack))]
@@ -346,6 +360,29 @@ public partial class BrowserTabViewModel : ObservableObject
         }
 
         _coreWebView2.Navigate(UrlHelper.Normalize(AddressBarText));
+    }
+
+    private const string ThemeColorScript =
+        "(function(){var m=document.querySelector('meta[name=\"theme-color\"]');return m?m.content:'';})();";
+
+    private async Task RefreshSiteAccentColorAsync()
+    {
+        if (_coreWebView2 is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var json = await _coreWebView2.ExecuteScriptAsync(ThemeColorScript);
+            var value = JsonSerializer.Deserialize<string>(json);
+            SiteAccentColorHex = string.IsNullOrWhiteSpace(value) ? null : value;
+        }
+        catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // The tab was suspended/torn down while the script was in flight — not worth surfacing for a cosmetic feature.
+            SiteAccentColorHex = null;
+        }
     }
 
     private const double ZoomStep = 0.1;

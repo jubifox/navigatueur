@@ -18,15 +18,27 @@ public partial class PrivateBrowsingWindow : Window
     private readonly string _profileFolder = Path.Combine(
         Path.GetTempPath(), "Navigatueur", "Private", Guid.NewGuid().ToString("N"));
 
+    private readonly TabManagerService _tabManager;
+
     public PrivateBrowsingWindow()
     {
         InitializeComponent();
 
         var environment = new WebView2EnvironmentService(_profileFolder);
-        var tabManager = new TabManagerService(new AppSettings(), environment, isPrivate: true);
-        DataContext = new MainWindowViewModel(tabManager);
+        _tabManager = new TabManagerService(new AppSettings(), environment, isPrivate: true);
+        DataContext = new MainWindowViewModel(_tabManager);
 
+        Closing += OnClosing;
         Closed += OnClosed;
+    }
+
+    /// <summary>Same reasoning as MainWindow: explicitly dispose every live WebView2 before the window closes, so an audio-playing private tab doesn't keep its renderer (and sound) alive past the window disappearing.</summary>
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        foreach (var tab in _tabManager.Tabs)
+        {
+            tab.IsSuspended = true;
+        }
     }
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

@@ -26,9 +26,13 @@ public partial class MainWindowViewModel : ObservableObject
 
     public DownloadManagerService Downloads => AppServices.Downloads;
 
-    /// <summary>UI-only, not persisted — shrinks the vertical tab strip to an icon-only rail.</summary>
+    /// <summary>UI-only, not persisted. When pinned, the tab strip stays fully expanded and ignores hover.</summary>
     [ObservableProperty]
-    private bool isCompactMode;
+    private bool isSidebarPinned;
+
+    /// <summary>Drives the tab strip's actual visual state (labels shown/hidden) — true when pinned, or currently hovered.</summary>
+    [ObservableProperty]
+    private bool isSidebarExpanded;
 
     public MainWindowViewModel(TabManagerService tabManager)
     {
@@ -59,5 +63,9 @@ public partial class MainWindowViewModel : ObservableObject
     private void ToggleGroupCollapsed(TabGroup group) => _tabManager.ToggleGroupCollapsed(group);
 
     [RelayCommand]
-    private void ToggleCompactMode() => IsCompactMode = !IsCompactMode;
+    private void ToggleSidebarPinned()
+    {
+        IsSidebarPinned = !IsSidebarPinned;
+        IsSidebarExpanded = IsSidebarPinned;
+    }
 }

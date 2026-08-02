@@ -4,6 +4,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
+using Navigatueur.App.Animation;
 using Navigatueur.App.Models;
 using Navigatueur.App.Services;
 using Navigatueur.App.ViewModels;
@@ -82,6 +84,51 @@ public partial class MainWindow : Window
         target.Child = AddressBarTextBox;
     }
 
+    private const double SidebarCollapsedWidth = 52;
+    private const double SidebarExpandedWidth = 220;
+
+    private void OnTabColumnMouseEnter(object sender, MouseEventArgs e)
+    {
+        var vm = (MainWindowViewModel)DataContext;
+        if (vm.IsSidebarPinned)
+        {
+            return;
+        }
+
+        vm.IsSidebarExpanded = true;
+        AnimateTabColumnWidth(SidebarExpandedWidth);
+    }
+
+    private void OnTabColumnMouseLeave(object sender, MouseEventArgs e)
+    {
+        var vm = (MainWindowViewModel)DataContext;
+        if (vm.IsSidebarPinned)
+        {
+            return;
+        }
+
+        vm.IsSidebarExpanded = false;
+        AnimateTabColumnWidth(SidebarCollapsedWidth);
+    }
+
+    private void AnimateTabColumnWidth(double toPixels)
+    {
+        var animation = new GridLengthAnimation
+        {
+            From = TabColumnDefinition.Width,
+            To = new GridLength(toPixels),
+            Duration = TimeSpan.FromMilliseconds(160),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+
+        // FillBehavior.Stop releases the animation's hold on the property as soon
+        // as it completes; without this, WPF keeps Width "animated" forever and a
+        // later GridSplitter drag (which sets Width directly) would be ignored.
+        animation.Completed += (_, _) => TabColumnDefinition.Width = new GridLength(toPixels);
+        TabColumnDefinition.BeginAnimation(ColumnDefinition.WidthProperty, animation);
+    }
+
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
 
     private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e) =>
@@ -112,6 +159,12 @@ public partial class MainWindow : Window
         if (!_forceClose && _musicOverlay.IsVisible)
         {
             e.Cancel = true;
+            // Persist now, not only on a real quit — otherwise a session that
+            // never explicitly hits "Quitter" from the tray (closed via Task
+            // Manager, or just left running for days) loses every tab
+            // opened/closed since the last real exit, and the *previous*
+            // (stale) session gets restored next launch instead.
+            SaveSessionState();
             Hide();
             ShowTrayIcon();
             return;
@@ -121,6 +174,26 @@ public partial class MainWindow : Window
         _trayIcon?.Dispose();
         _trayIcon = null;
 
+        SaveSessionState();
+
+        // WebView2's renderer/GPU/network child processes are only reliably
+        // torn down if every live CoreWebView2 is explicitly disposed before
+        // exit — otherwise background timers (idle-suspend, update checks,
+        // memory monitor) can keep this process alive a moment longer than
+        // expected, and an audio-playing tab's renderer has been observed to
+        // keep producing sound during that gap. Suspending every tab tears
+        // down its WebView2 synchronously via the existing suspend/resume
+        // pipeline, then a hard process exit guarantees nothing lingers.
+        foreach (var tab in AppServices.TabManager.Tabs)
+        {
+            tab.IsSuspended = true;
+        }
+
+        Environment.Exit(0);
+    }
+
+    private void SaveSessionState()
+    {
         var settings = AppServices.CurrentSettings;
         settings.WindowWidth = Width;
         settings.WindowHeight = Height;

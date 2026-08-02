@@ -11,6 +11,7 @@
     <converters:BoolToActiveBrushConverter x:Key="ActiveTabBackgroundConverter" />
     <converters:RamUsageToBrushConverter x:Key="RamUsageToBrushConverter" />
     <converters:PathToImageSourceConverter x:Key="PathToImageSourceConverter" />
+    <converters:SiteAccentGradientConverter x:Key="SiteAccentGradientConverter" />
 
     <!--
       App-wide font. FontFamily/FontWeight are inherited WPF properties, so

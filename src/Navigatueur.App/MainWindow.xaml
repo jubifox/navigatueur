@@ -32,6 +32,17 @@
                Stretch="UniformToFill" />
         <Border Background="{DynamicResource ChromeBackgroundBrush}" Opacity="0.55" />
 
+        <!-- The current site's declared theme-color, faded top-to-gray — transparent (no-op) when
+             the site doesn't declare one, or a custom background image is set. -->
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <MultiBinding Converter="{StaticResource SiteAccentGradientConverter}">
+                    <Binding Path="ActiveTab.SiteAccentColorHex" />
+                    <Binding Path="Theme.ChromeBackgroundImagePath" />
+                </MultiBinding>
+            </Border.Background>
+        </Border>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -129,8 +140,18 @@
                         <TextBlock Text="Mise à jour" Foreground="White" VerticalAlignment="Center" FontSize="12" />
                     </StackPanel>
                 </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding ToggleCompactModeCommand}" ToolTip="Mode compact">
-                    <Path Data="{StaticResource IconPanelLeft}" Style="{StaticResource VectorIcon}" />
+                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding ToggleSidebarPinnedCommand}" ToolTip="Épingler la colonne des onglets grande ouverte">
+                    <Path Data="{StaticResource IconPanelLeft}">
+                        <Path.Style>
+                            <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsSidebarPinned}" Value="True">
+                                        <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Path.Style>
+                    </Path>
                 </Button>
                 <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenExtensionsClick" ToolTip="Extensions">
                     <Path Data="{StaticResource IconPuzzle}" Style="{StaticResource VectorIcon}" />
@@ -205,27 +226,13 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="220">
-                    <ColumnDefinition.Style>
-                        <Style TargetType="ColumnDefinition">
-                            <Setter Property="MinWidth" Value="140" />
-                            <Setter Property="MaxWidth" Value="400" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
-                                    <Setter Property="Width" Value="52" />
-                                    <Setter Property="MinWidth" Value="52" />
-                                    <Setter Property="MaxWidth" Value="52" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ColumnDefinition.Style>
-                </ColumnDefinition>
+                <ColumnDefinition x:Name="TabColumnDefinition" Width="52" MinWidth="52" MaxWidth="400" />
                 <ColumnDefinition Width="4" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Vertical tab strip -->
-            <Border Grid.Column="0">
+            <!-- Vertical tab strip: compact by default, expands on hover unless pinned (Zen-browser-style). -->
+            <Border Grid.Column="0" MouseEnter="OnTabColumnMouseEnter" MouseLeave="OnTabColumnMouseLeave">
                 <DockPanel>
                 <Border x:Name="AddressBarSidebarSlot" DockPanel.Dock="Top" Margin="4,4,4,2" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -277,7 +284,7 @@
                                                             <DataTrigger Binding="{Binding IsEditingName}" Value="True">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
-                                                            <DataTrigger Binding="{Binding DataContext.IsCompactMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="True">
+                                                            <DataTrigger Binding="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="False">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                             </DataTrigger>
                                                         </Style.Triggers>
@@ -437,7 +444,7 @@
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCompactMode}" Value="True">
+                                            <DataTrigger Binding="{Binding IsSidebarExpanded}" Value="False">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>
