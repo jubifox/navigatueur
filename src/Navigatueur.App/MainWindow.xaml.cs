@@ -22,12 +22,10 @@ public partial class MainWindow : Window
     private Views.ExtensionsWindow? _extensionsWindow;
     private Views.HistoryWindow? _historyWindow;
     private Views.PrivateBrowsingWindow? _privateWindow;
-    private Point? _tabDragStart;
-    private BrowserTabViewModel? _tabDragSource;
+    private Views.TabSidebarWindow? _tabSidebarWindow;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _forceClose;
     private readonly DispatcherTimer _autosaveTimer;
-    private readonly double _preferredExpandedWidth = SidebarExpandedWidth;
 
     public MainWindow()
     {
@@ -48,12 +46,18 @@ public partial class MainWindow : Window
 
         var viewModel = new MainWindowViewModel(AppServices.TabManager);
         DataContext = viewModel;
-        viewModel.PropertyChanged += OnViewModelPropertyChanged;
 
         if (AppServices.Settings.IsFirstRun)
         {
             new Views.WelcomeWindow().ShowDialog();
         }
+
+        _tabSidebarWindow = new Views.TabSidebarWindow(viewModel) { Owner = this };
+        LocationChanged += (_, _) => RepositionTabSidebar();
+        SizeChanged += (_, _) => RepositionTabSidebar();
+        StateChanged += (_, _) => RepositionTabSidebar();
+        ContentRendered += (_, _) => RepositionTabSidebar();
+        _tabSidebarWindow.Show();
 
         ApplyAddressBarPosition();
         AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
@@ -77,15 +81,37 @@ public partial class MainWindow : Window
         Closing += OnClosing;
     }
 
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <summary>
+    /// Keeps the separate TabSidebarWindow glued to MainWindow's left edge,
+    /// spanning from just below the toolbar down to the bottom address bar
+    /// slot (if that's where it's currently docked). Hidden while minimized,
+    /// since an owned window doesn't automatically follow its owner's
+    /// minimize/restore state.
+    /// </summary>
+    private void RepositionTabSidebar()
     {
-        if (e.PropertyName != nameof(MainWindowViewModel.IsSidebarPinned))
+        if (_tabSidebarWindow is null)
         {
             return;
         }
 
-        var vm = (MainWindowViewModel)DataContext;
-        AnimateTabColumnWidth(vm.IsSidebarPinned ? _preferredExpandedWidth : SidebarCollapsedWidth);
+        if (WindowState == WindowState.Minimized)
+        {
+            _tabSidebarWindow.Hide();
+            return;
+        }
+
+        var topOffset = TitleBarBorder.ActualHeight + ToolbarBorder.ActualHeight;
+        var bottomOffset = AddressBarBottomSlot.Child is not null ? AddressBarBottomSlot.ActualHeight : 0;
+
+        _tabSidebarWindow.Left = Left;
+        _tabSidebarWindow.Top = Top + topOffset;
+        _tabSidebarWindow.Height = Math.Max(0, ActualHeight - topOffset - bottomOffset);
+
+        if (!_tabSidebarWindow.IsVisible)
+        {
+            _tabSidebarWindow.Show();
+        }
     }
 
     private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -99,40 +125,39 @@ public partial class MainWindow : Window
     /// <summary>
     /// The address bar is a single TextBox instance moved between three empty
     /// slot Borders (top toolbar, bottom of the window, top of the tab
-    /// column) rather than duplicated, so there's exactly one source of truth
-    /// for its focus/selection state regardless of where it's docked.
+    /// sidebar — the latter now living in the separate TabSidebarWindow)
+    /// rather than duplicated, so there's exactly one source of truth for
+    /// its focus/selection state regardless of where it's docked.
     /// </summary>
     private void ApplyAddressBarPosition()
     {
         AddressBarTopSlot.Child = null;
         AddressBarBottomSlot.Child = null;
-        AddressBarSidebarSlot.Child = null;
+        if (_tabSidebarWindow is not null)
+        {
+            _tabSidebarWindow.AddressBarSidebarSlot.Child = null;
+        }
 
         var target = AppServices.Theme.AddressBarPosition switch
         {
             "Bottom" => AddressBarBottomSlot,
-            "Sidebar" => AddressBarSidebarSlot,
+            "Sidebar" => _tabSidebarWindow?.AddressBarSidebarSlot ?? AddressBarTopSlot,
             _ => AddressBarTopSlot,
         };
         target.Child = AddressBarTextBox;
+        RepositionTabSidebar();
     }
 
     private CursorTrailTracker? _cursorTrailTracker;
 
     /// <summary>
-    /// Single Window-level PreviewMouseMove handler doing two unrelated jobs:
-    /// the cursor trail, and driving the sidebar hover expand/collapse via a
-    /// direct geometric position check against TabColumnHost's live bounds —
-    /// far more reliable than that element's own MouseEnter/Leave, which
-    /// depends on precise hit-test boundaries that proved flaky in practice.
-    /// Both only ever see moves over the app's own WPF chrome; WebView2 hosts
-    /// page content in a separate native child window that never routes
-    /// mouse input through WPF at all.
+    /// Cursor trail over the app's own WPF chrome (toolbar, title bar) — the
+    /// sidebar has its own separate trail since it's a separate window now.
+    /// Never sees moves over actual page content; WebView2 hosts that in a
+    /// separate native child window that never routes mouse input through WPF.
     /// </summary>
     private void OnWindowMouseMoveForTrail(object sender, MouseEventArgs e)
     {
-        UpdateSidebarHoverState(e);
-
         if (!AppServices.Theme.IsCursorTrailEnabled)
         {
             return;
@@ -140,53 +165,6 @@ public partial class MainWindow : Window
 
         _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailCanvas);
         _cursorTrailTracker.OnMove(e.GetPosition(CursorTrailCanvas));
-    }
-
-    private const double SidebarCollapsedWidth = 52;
-    private const double SidebarExpandedWidth = 220;
-
-    private void UpdateSidebarHoverState(MouseEventArgs e)
-    {
-        var vm = (MainWindowViewModel)DataContext;
-        if (vm.IsSidebarPinned)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(TabColumnHost);
-        var isOver = position.X >= 0 && position.X <= TabColumnHost.ActualWidth
-            && position.Y >= 0 && position.Y <= TabColumnHost.ActualHeight;
-
-        if (isOver == vm.IsSidebarExpanded)
-        {
-            return;
-        }
-
-        vm.IsSidebarExpanded = isOver;
-        AnimateTabColumnWidth(isOver ? _preferredExpandedWidth : SidebarCollapsedWidth);
-    }
-
-    /// <summary>
-    /// Animates TabColumnHost's own Width — a plain double (FrameworkElement.Width),
-    /// not a Grid column — so this is a completely ordinary DoubleAnimation. The
-    /// content area's real layout size never changes, since the tab strip now
-    /// floats over it (see the XAML comment above TabColumnHost) instead of
-    /// resizing the Grid column it used to live in.
-    /// </summary>
-    private void AnimateTabColumnWidth(double toPixels)
-    {
-        // EaseOut front-loads most of the size change into the first frames, which
-        // read as an instant "pop" to the eye rather than a glide — EaseInOut spreads
-        // the motion evenly across the whole duration instead.
-        var animation = new DoubleAnimation
-        {
-            To = toPixels,
-            Duration = TimeSpan.FromMilliseconds(280),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
-            FillBehavior = FillBehavior.Stop,
-        };
-        animation.Completed += (_, _) => TabColumnHost.Width = toPixels;
-        TabColumnHost.BeginAnimation(FrameworkElement.WidthProperty, animation);
     }
 
     /// <summary>
@@ -297,6 +275,7 @@ public partial class MainWindow : Window
             // (stale) session gets restored next launch instead.
             SaveSessionState();
             Hide();
+            _tabSidebarWindow?.Hide();
             ShowTrayIcon();
             return;
         }
@@ -393,6 +372,7 @@ public partial class MainWindow : Window
         Show();
         WindowState = WindowState.Normal;
         Activate();
+        RepositionTabSidebar();
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
@@ -588,6 +568,14 @@ public partial class MainWindow : Window
         textBox.SelectionStart = typed.Length;
         textBox.SelectionLength = suggestion.Length - typed.Length;
         _isApplyingAddressBarSuggestion = false;
+
+        // Without this, the next keystroke (e.g. pressing Delete to remove the
+        // selected suggestion) compared its shrunk length against the length
+        // from *before* the suggestion was appended — since that never changed
+        // while the guard above was skipping the length update, a Delete that
+        // correctly removed the whole suggestion looked like "no change in
+        // length" and immediately re-triggered the same suggestion right back.
+        _lastAddressBarTypedLength = suggestion.Length;
     }
 
     /// <summary>Best-matching hostname (history first, then a handful of common sites for a cold history), or null if nothing starts with what's typed.</summary>
@@ -637,100 +625,4 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnTabPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _tabDragStart = e.GetPosition(null);
-        _tabDragSource = (sender as FrameworkElement)?.DataContext as BrowserTabViewModel;
-    }
-
-    private void OnTabPreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _tabDragStart is not { } start || _tabDragSource is null)
-        {
-            return;
-        }
-
-        var current = e.GetPosition(null);
-        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
-            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        DragDrop.DoDragDrop((DependencyObject)sender, _tabDragSource, DragDropEffects.Move);
-        _tabDragStart = null;
-        _tabDragSource = null;
-    }
-
-    private void OnTabDrop(object sender, DragEventArgs e)
-    {
-        if (!e.Data.GetDataPresent(typeof(BrowserTabViewModel)))
-        {
-            return;
-        }
-
-        var source = (BrowserTabViewModel)e.Data.GetData(typeof(BrowserTabViewModel))!;
-        if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } targetElement || source == target)
-        {
-            return;
-        }
-
-        // Dropping on the middle band of the target row groups the two tabs (Chrome/Edge-style);
-        // dropping near the top/bottom edge just reorders, as before.
-        var dropY = e.GetPosition(targetElement).Y;
-        var isCenterDrop = targetElement.ActualHeight > 0
-            && dropY > targetElement.ActualHeight * 0.25
-            && dropY < targetElement.ActualHeight * 0.75;
-
-        if (isCenterDrop)
-        {
-            AppServices.TabManager.GroupTabs(source, target);
-        }
-        else
-        {
-            AppServices.TabManager.ReorderTab(source, target);
-        }
-    }
-
-    private void OnGroupNameEditPreviewMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        // Stops the click from bubbling into the group header Button, which would otherwise toggle collapse instead of placing the caret.
-        e.Handled = true;
-        ((TextBox)sender).Focus();
-    }
-
-    private void OnGroupNameEditKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter && (sender as FrameworkElement)?.DataContext is TabGroup group)
-        {
-            group.IsEditingName = false;
-        }
-    }
-
-    private void OnGroupNameEditLostFocus(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.DataContext is TabGroup group)
-        {
-            group.IsEditingName = false;
-        }
-    }
-
-    private void OnGroupNameEditIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (sender is not TextBox { IsVisible: true } textBox)
-        {
-            return;
-        }
-
-        // The context menu that triggered "Renommer..." restores focus to its
-        // placement target (the group's Button) as it closes — if that lands
-        // after a synchronous Focus() call here, it steals focus right back
-        // and LostFocus immediately reverts the rename. Deferring past that
-        // restoration (ApplicationIdle) makes ours win instead.
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            textBox.Focus();
-            textBox.SelectAll();
-        }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-    }
 }

@@ -1,0 +1,180 @@
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media.Animation;
+using Navigatueur.App.Services;
+using Navigatueur.App.ViewModels;
+
+namespace Navigatueur.App.Views;
+
+/// <summary>
+/// The vertical tab strip, as a genuinely separate top-level window (owned by
+/// MainWindow) instead of an element inside it — see the XAML comment for why.
+/// Compact by default, expands on hover unless pinned (Zen-browser-style).
+/// MainWindow keeps this window's position/size synced to its own; everything
+/// about the hover/pin/width-animation behavior is self-contained here.
+/// </summary>
+public partial class TabSidebarWindow : Window
+{
+    private const double CollapsedWidth = 52;
+    private const double ExpandedWidth = 220;
+
+    private readonly MainWindowViewModel _viewModel;
+    private Point? _tabDragStart;
+    private BrowserTabViewModel? _tabDragSource;
+
+    public TabSidebarWindow(MainWindowViewModel viewModel)
+    {
+        InitializeComponent();
+
+        _viewModel = viewModel;
+        DataContext = viewModel;
+        Width = CollapsedWidth;
+
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarPinned))
+        {
+            AnimateWidth(_viewModel.IsSidebarPinned ? ExpandedWidth : CollapsedWidth);
+        }
+    }
+
+    private void OnMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (_viewModel.IsSidebarPinned)
+        {
+            return;
+        }
+
+        _viewModel.IsSidebarExpanded = true;
+        AnimateWidth(ExpandedWidth);
+    }
+
+    private void OnMouseLeave(object sender, MouseEventArgs e)
+    {
+        if (_viewModel.IsSidebarPinned)
+        {
+            return;
+        }
+
+        _viewModel.IsSidebarExpanded = false;
+        AnimateWidth(CollapsedWidth);
+    }
+
+    private void AnimateWidth(double toPixels)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = toPixels,
+            Duration = TimeSpan.FromMilliseconds(280),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+        animation.Completed += (_, _) => Width = toPixels;
+        BeginAnimation(WidthProperty, animation);
+    }
+
+    private void OnGroupNameEditPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Stops the click from bubbling into the group header Button, which would otherwise toggle collapse instead of placing the caret.
+        e.Handled = true;
+        ((TextBox)sender).Focus();
+    }
+
+    private void OnGroupNameEditKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (sender as FrameworkElement)?.DataContext is Models.TabGroup group)
+        {
+            group.IsEditingName = false;
+        }
+    }
+
+    private void OnGroupNameEditLostFocus(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Models.TabGroup group)
+        {
+            group.IsEditingName = false;
+        }
+    }
+
+    private void OnGroupNameEditIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not TextBox { IsVisible: true } textBox)
+        {
+            return;
+        }
+
+        // The context menu that triggered "Renommer..." restores focus to its
+        // placement target (the group's Button) as it closes — if that lands
+        // after a synchronous Focus() call here, it steals focus right back
+        // and LostFocus immediately reverts the rename. Deferring past that
+        // restoration (ApplicationIdle) makes ours win instead.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            textBox.Focus();
+            textBox.SelectAll();
+        }), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+    }
+
+    private void OnTabPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _tabDragStart = e.GetPosition(null);
+        _tabDragSource = (sender as FrameworkElement)?.DataContext as BrowserTabViewModel;
+    }
+
+    private void OnTabPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _tabDragStart is not { } start || _tabDragSource is null)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(null);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        DragDrop.DoDragDrop((DependencyObject)sender, _tabDragSource, DragDropEffects.Move);
+        _tabDragStart = null;
+        _tabDragSource = null;
+    }
+
+    private void OnTabDrop(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(typeof(BrowserTabViewModel)))
+        {
+            return;
+        }
+
+        var source = (BrowserTabViewModel)e.Data.GetData(typeof(BrowserTabViewModel))!;
+        if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } targetElement || source == target)
+        {
+            return;
+        }
+
+        // Dropping on the middle band of the target row groups the two tabs (Chrome/Edge-style).
+        // Dropping in the top quarter inserts before the target, the bottom quarter after it —
+        // previously any edge drop always inserted before, so there was no way to place a tab
+        // as the last item, or precisely after a specific tab rather than before the next one.
+        var dropY = e.GetPosition(targetElement).Y;
+        var isCenterDrop = targetElement.ActualHeight > 0
+            && dropY > targetElement.ActualHeight * 0.25
+            && dropY < targetElement.ActualHeight * 0.75;
+
+        if (isCenterDrop)
+        {
+            AppServices.TabManager.GroupTabs(source, target);
+        }
+        else
+        {
+            var insertAfter = targetElement.ActualHeight > 0 && dropY >= targetElement.ActualHeight * 0.75;
+            AppServices.TabManager.ReorderTab(source, target, insertAfter);
+        }
+    }
+}

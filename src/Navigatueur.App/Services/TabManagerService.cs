@@ -342,8 +342,8 @@ public partial class TabManagerService : ObservableObject
 
     public void ToggleGroupCollapsed(TabGroup group) => group.IsCollapsed = !group.IsCollapsed;
 
-    /// <summary>Moves <paramref name="source"/> to just before <paramref name="target"/> in the tab strip, adopting the target's group if different.</summary>
-    public void ReorderTab(BrowserTabViewModel source, BrowserTabViewModel target)
+    /// <summary>Moves <paramref name="source"/> to just before (or after) <paramref name="target"/> in the tab strip, adopting the target's group if different.</summary>
+    public void ReorderTab(BrowserTabViewModel source, BrowserTabViewModel target, bool insertAfter = false)
     {
         if (source == target || !Tabs.Contains(source) || !Tabs.Contains(target))
         {
@@ -353,7 +353,7 @@ public partial class TabManagerService : ObservableObject
         Tabs.Remove(source);
         var targetIndex = Tabs.IndexOf(target);
         source.GroupId = target.GroupId;
-        Tabs.Insert(targetIndex, source);
+        Tabs.Insert(insertAfter ? targetIndex + 1 : targetIndex, source);
         RebuildTabStripItems();
     }
 

@@ -43,18 +43,20 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Grid>
-                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="4" Padding="4">
-                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
                         <!--
-                          Separate fade-in/out overlay instead of animating ButtonBorder's own
+                          Declared first (behind the content) so the icon/text never gets covered —
+                          it used to render on top at full opacity, hiding the button's icon entirely
+                          on hover. Separate fade-in/out overlay instead of animating ButtonBorder's own
                           Background directly — that background is often an arbitrary/DynamicResource
                           brush (transparent, accent...) set per-button, so animating its Color isn't
                           reliably possible. A dedicated overlay fades independently of whatever's underneath.
                         -->
                         <Border x:Name="HoverOverlay" Background="{DynamicResource ChromeBorderBrush}"
                                 CornerRadius="4" Opacity="0" IsHitTestVisible="False" />
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}" CornerRadius="4" Padding="4">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -62,7 +64,7 @@
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="HoverOverlay" Storyboard.TargetProperty="Opacity"
-                                                         To="1" Duration="0:0:0.12" />
+                                                         To="0.35" Duration="0:0:0.12" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
