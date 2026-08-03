@@ -170,6 +170,14 @@ public partial class SettingsWindow : Window
         AppServices.SearchEngine.SetEngine(id);
     }
 
+    private void OnCursorTrailToggleClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox checkBox)
+        {
+            AppServices.Theme.SetCursorTrailEnabled(checkBox.IsChecked == true);
+        }
+    }
+
     private void OnAddressBarPositionClick(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string position })

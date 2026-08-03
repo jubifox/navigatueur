@@ -48,4 +48,7 @@ public sealed class AppSettings
 
     /// <summary>Address bar text/padding scale: "Small", "Normal", or "Large".</summary>
     public string AddressBarSize { get; set; } = "Normal";
+
+    /// <summary>Whether the accent-colored cursor trail effect is shown, both in the app's own chrome and injected into web pages.</summary>
+    public bool IsCursorTrailEnabled { get; set; } = true;
 }

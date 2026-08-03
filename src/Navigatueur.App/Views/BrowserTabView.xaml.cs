@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
+using Navigatueur.App.Animation;
 using Navigatueur.App.Services;
 using Navigatueur.App.ViewModels;
 
@@ -255,13 +256,18 @@ public partial class BrowserTabView : UserControl
                 return;
             }
 
-            SpawnTrailDot(root.GetProperty("x").GetDouble(), root.GetProperty("y").GetDouble());
+            if (AppServices.Theme.IsCursorTrailEnabled)
+            {
+                SpawnTrailPoint(root.GetProperty("x").GetDouble(), root.GetProperty("y").GetDouble());
+            }
         }
         catch (JsonException)
         {
             // Malformed/unexpected message — not worth surfacing for a cosmetic feature.
         }
     }
+
+    private CursorTrailTracker? _cursorTrailTracker;
 
     /// <summary>
     /// clientX/clientY are in CSS/viewport pixels, which shrink relative to
@@ -270,37 +276,13 @@ public partial class BrowserTabView : UserControl
     /// they need scaling by the current zoom to land in the right spot on
     /// this control-relative overlay.
     /// </summary>
-    private void SpawnTrailDot(double clientX, double clientY)
+    private void SpawnTrailPoint(double clientX, double clientY)
     {
         var zoom = _webView?.ZoomFactor ?? 1.0;
         var position = new Point(clientX * zoom, clientY * zoom);
 
-        var accentColor = Application.Current.Resources["AccentBrush"] is SolidColorBrush accentBrush
-            ? accentBrush.Color
-            : Colors.White;
-
-        const double size = 8;
-        var dot = new System.Windows.Shapes.Ellipse
-        {
-            Width = size,
-            Height = size,
-            Fill = new SolidColorBrush(accentColor),
-            IsHitTestVisible = false,
-        };
-        Canvas.SetLeft(dot, position.X - size / 2);
-        Canvas.SetTop(dot, position.Y - size / 2);
-
-        var scale = new ScaleTransform(1, 1, size / 2, size / 2);
-        dot.RenderTransform = scale;
-        CursorTrailOverlay.Children.Add(dot);
-
-        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(450)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
-        var shrink = new DoubleAnimation(1, 0.2, TimeSpan.FromMilliseconds(450));
-        fade.Completed += (_, _) => CursorTrailOverlay.Children.Remove(dot);
-
-        dot.BeginAnimation(UIElement.OpacityProperty, fade);
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+        _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailOverlay);
+        _cursorTrailTracker.OnMove(position);
     }
 
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e) =>

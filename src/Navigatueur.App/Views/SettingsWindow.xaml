@@ -87,6 +87,10 @@
         <TextBlock Text="Les onglets déjà ouverts reprennent le nouveau fond au prochain rechargement."
                    Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,20" />
 
+        <TextBlock Text="Curseur" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
+        <CheckBox Content="Traînée de curseur" IsChecked="{Binding IsCursorTrailEnabled}" Click="OnCursorTrailToggleClick"
+                  Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,20" />
+
         <TextBlock Text="Position de la barre d'adresse" FontWeight="Bold" Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
             <Button Content="Haut" Padding="14,6" Margin="0,0,8,0" Click="OnAddressBarPositionClick" Tag="Top">

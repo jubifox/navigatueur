@@ -27,6 +27,8 @@ public partial class MainWindow : Window
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _forceClose;
     private readonly DispatcherTimer _autosaveTimer;
+    private bool _isAnimatingSidebarWidth;
+    private double _preferredExpandedWidth = SidebarExpandedWidth;
 
     public MainWindow()
     {
@@ -61,6 +63,14 @@ public partial class MainWindow : Window
         _autosaveTimer.Tick += (_, _) => SaveSessionState();
         _autosaveTimer.Start();
 
+        // GridSplitter drags set ColumnDefinition.Width directly, bypassing
+        // AnimateTabColumnWidth entirely — this is the only way to notice a
+        // manual resize and remember it, so the next hover-expand restores the
+        // user's own width instead of snapping back to the hardcoded default.
+        DependencyPropertyDescriptor
+            .FromProperty(ColumnDefinition.WidthProperty, typeof(ColumnDefinition))
+            .AddValueChanged(TabColumnDefinition, OnTabColumnWidthChanged);
+
         AppServices.RequestForceQuit = () =>
         {
             _forceClose = true;
@@ -78,7 +88,7 @@ public partial class MainWindow : Window
         }
 
         var vm = (MainWindowViewModel)DataContext;
-        AnimateTabColumnWidth(vm.IsSidebarPinned ? SidebarExpandedWidth : SidebarCollapsedWidth);
+        AnimateTabColumnWidth(vm.IsSidebarPinned ? _preferredExpandedWidth : SidebarCollapsedWidth);
     }
 
     private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -110,8 +120,7 @@ public partial class MainWindow : Window
         target.Child = AddressBarTextBox;
     }
 
-    private DateTime _lastTrailSpawn = DateTime.MinValue;
-    private static readonly TimeSpan TrailSpawnInterval = TimeSpan.FromMilliseconds(20);
+    private CursorTrailTracker? _cursorTrailTracker;
 
     /// <summary>
     /// Single Window-level PreviewMouseMove handler doing two unrelated jobs:
@@ -127,41 +136,13 @@ public partial class MainWindow : Window
     {
         UpdateSidebarHoverState(e);
 
-        var now = DateTime.UtcNow;
-        if (now - _lastTrailSpawn < TrailSpawnInterval)
+        if (!AppServices.Theme.IsCursorTrailEnabled)
         {
             return;
         }
 
-        _lastTrailSpawn = now;
-
-        var position = e.GetPosition(CursorTrailCanvas);
-        var accentColor = Application.Current.Resources["AccentBrush"] is SolidColorBrush accentBrush
-            ? accentBrush.Color
-            : Colors.White;
-
-        const double size = 8;
-        var dot = new System.Windows.Shapes.Ellipse
-        {
-            Width = size,
-            Height = size,
-            Fill = new SolidColorBrush(accentColor),
-            IsHitTestVisible = false,
-        };
-        Canvas.SetLeft(dot, position.X - size / 2);
-        Canvas.SetTop(dot, position.Y - size / 2);
-
-        var scale = new ScaleTransform(1, 1, size / 2, size / 2);
-        dot.RenderTransform = scale;
-        CursorTrailCanvas.Children.Add(dot);
-
-        var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(450)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
-        var shrink = new DoubleAnimation(1, 0.2, TimeSpan.FromMilliseconds(450));
-        fade.Completed += (_, _) => CursorTrailCanvas.Children.Remove(dot);
-
-        dot.BeginAnimation(UIElement.OpacityProperty, fade);
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+        _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailCanvas);
+        _cursorTrailTracker.OnMove(e.GetPosition(CursorTrailCanvas));
     }
 
     private const double SidebarCollapsedWidth = 52;
@@ -185,11 +166,13 @@ public partial class MainWindow : Window
         }
 
         vm.IsSidebarExpanded = isOver;
-        AnimateTabColumnWidth(isOver ? SidebarExpandedWidth : SidebarCollapsedWidth);
+        AnimateTabColumnWidth(isOver ? _preferredExpandedWidth : SidebarCollapsedWidth);
     }
 
     private void AnimateTabColumnWidth(double toPixels)
     {
+        _isAnimatingSidebarWidth = true;
+
         // EaseOut front-loads most of the size change into the first frames, which
         // read as an instant "pop" to the eye rather than a glide — EaseInOut spreads
         // the motion evenly across the whole duration instead.
@@ -205,8 +188,32 @@ public partial class MainWindow : Window
         // FillBehavior.Stop releases the animation's hold on the property as soon
         // as it completes; without this, WPF keeps Width "animated" forever and a
         // later GridSplitter drag (which sets Width directly) would be ignored.
-        animation.Completed += (_, _) => TabColumnDefinition.Width = new GridLength(toPixels);
+        animation.Completed += (_, _) =>
+        {
+            TabColumnDefinition.Width = new GridLength(toPixels);
+            _isAnimatingSidebarWidth = false;
+        };
         TabColumnDefinition.BeginAnimation(ColumnDefinition.WidthProperty, animation);
+    }
+
+    /// <summary>
+    /// Fires for every Width change on TabColumnDefinition, including our own
+    /// per-frame animation ticks — only a manual GridSplitter drag (the only
+    /// other thing that ever sets this property) should update the remembered
+    /// "preferred expanded width", so animation-driven changes are ignored.
+    /// </summary>
+    private void OnTabColumnWidthChanged(object? sender, EventArgs e)
+    {
+        if (_isAnimatingSidebarWidth)
+        {
+            return;
+        }
+
+        var width = TabColumnDefinition.Width.Value;
+        if (width > SidebarCollapsedWidth + 4)
+        {
+            _preferredExpandedWidth = width;
+        }
     }
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;

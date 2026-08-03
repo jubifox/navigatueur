@@ -49,6 +49,9 @@ public partial class ThemeService : ObservableObject
     [ObservableProperty]
     private string addressBarSize;
 
+    [ObservableProperty]
+    private bool isCursorTrailEnabled;
+
     public ThemeService(AppSettings settings)
     {
         _settings = settings;
@@ -58,8 +61,16 @@ public partial class ThemeService : ObservableObject
         newTabBackgroundImagePath = settings.NewTabBackgroundImagePath;
         addressBarPosition = settings.AddressBarPosition;
         addressBarSize = settings.AddressBarSize;
+        isCursorTrailEnabled = settings.IsCursorTrailEnabled;
 
         ApplyPalette();
+    }
+
+    public void SetCursorTrailEnabled(bool enabled)
+    {
+        IsCursorTrailEnabled = enabled;
+        _settings.IsCursorTrailEnabled = enabled;
+        Persist();
     }
 
     public void SetAddressBarPosition(string position)
