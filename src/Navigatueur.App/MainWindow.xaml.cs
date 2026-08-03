@@ -52,12 +52,15 @@ public partial class MainWindow : Window
             new Views.WelcomeWindow().ShowDialog();
         }
 
-        _tabSidebarWindow = new Views.TabSidebarWindow(viewModel) { Owner = this };
+        // WPF throws if you assign Owner to a window that doesn't have a real
+        // Win32 handle yet — MainWindow's constructor is still running at this
+        // point, so `this` has no handle until SourceInitialized fires. Creating
+        // the sidebar window there instead (crashed every launch before this fix).
+        SourceInitialized += (_, _) => InitializeTabSidebar(viewModel);
         LocationChanged += (_, _) => RepositionTabSidebar();
         SizeChanged += (_, _) => RepositionTabSidebar();
         StateChanged += (_, _) => RepositionTabSidebar();
         ContentRendered += (_, _) => RepositionTabSidebar();
-        _tabSidebarWindow.Show();
 
         ApplyAddressBarPosition();
         AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
@@ -79,6 +82,19 @@ public partial class MainWindow : Window
         };
 
         Closing += OnClosing;
+    }
+
+    private void InitializeTabSidebar(MainWindowViewModel viewModel)
+    {
+        _tabSidebarWindow = new Views.TabSidebarWindow(viewModel) { Owner = this };
+        _tabSidebarWindow.Show();
+
+        // Re-run now that AddressBarSidebarSlot actually exists, in case the
+        // saved AddressBarPosition is "Sidebar" — the earlier call in the
+        // constructor fell back to the top toolbar slot since the sidebar
+        // window didn't exist yet at that point.
+        ApplyAddressBarPosition();
+        RepositionTabSidebar();
     }
 
     /// <summary>
