@@ -124,6 +124,7 @@ public partial class MainWindow : Window
         _tabSidebarWindow.Left = Left;
         _tabSidebarWindow.Top = Top + topOffset;
         _tabSidebarWindow.Height = Math.Max(0, ActualHeight - topOffset - bottomOffset);
+        _tabSidebarWindow.SyncBackgroundGeometry(ActualWidth, ActualHeight, topOffset);
 
         if (!_tabSidebarWindow.IsVisible)
         {

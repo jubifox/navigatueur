@@ -16,6 +16,31 @@
       owner's child HWNDs, so the tab strip actually appears over the active page
       when expanded, instead of being silently hidden behind it.
     -->
+    <Grid>
+        <!-- Same chrome background image/wash/accent-gradient recipe as MainWindow's
+             root Grid (see MainWindow.xaml), so the two windows read as one
+             continuous surface instead of a themed page next to a flat-colored
+             strip. BackgroundImage is sized to MainWindow's own ActualWidth/Height
+             (not this window's much narrower one) and Canvas-positioned by
+             MainWindow (see SyncBackgroundGeometry) so the slice shown here is
+             pixel-aligned with what MainWindow renders at the same screen
+             position — clipped to this window's small bounds via ClipToBounds. -->
+        <Grid ClipToBounds="True">
+            <Canvas>
+                <Image x:Name="BackgroundImage" Stretch="UniformToFill"
+                       Source="{Binding Theme.ChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}" />
+            </Canvas>
+        </Grid>
+        <Border Background="{DynamicResource ChromeBackgroundBrush}" Opacity="0.55" />
+        <Border IsHitTestVisible="False">
+            <Border.Background>
+                <MultiBinding Converter="{StaticResource SiteAccentGradientConverter}">
+                    <Binding Path="ActiveTab.SiteAccentColorHex" />
+                    <Binding Path="Theme.ChromeBackgroundImagePath" />
+                </MultiBinding>
+            </Border.Background>
+        </Border>
+
     <Border BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,1,0">
         <DockPanel>
             <Border x:Name="AddressBarSidebarSlot" DockPanel.Dock="Top" Margin="4,4,4,2" />
@@ -387,4 +412,5 @@
             </ScrollViewer>
         </DockPanel>
     </Border>
+    </Grid>
 </Window>

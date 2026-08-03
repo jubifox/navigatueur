@@ -38,6 +38,23 @@ public partial class TabSidebarWindow : Window
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
     }
 
+    /// <summary>
+    /// Sizes/positions the shared chrome background image so the slice visible
+    /// in this narrow window lines up pixel-for-pixel with what MainWindow
+    /// renders at the same screen position. MainWindow calls this whenever it
+    /// repositions the sidebar (see RepositionTabSidebar) — <paramref name="virtualWidth"/>/
+    /// <paramref name="virtualHeight"/> are MainWindow's own ActualWidth/ActualHeight
+    /// (the box the image actually stretches to fill over there, not this
+    /// window's much narrower one), and <paramref name="offsetY"/> is how far
+    /// down MainWindow's content area starts (title bar + toolbar height).
+    /// </summary>
+    public void SyncBackgroundGeometry(double virtualWidth, double virtualHeight, double offsetY)
+    {
+        BackgroundImage.Width = virtualWidth;
+        BackgroundImage.Height = virtualHeight;
+        Canvas.SetTop(BackgroundImage, -offsetY);
+    }
+
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarPinned))
