@@ -253,6 +253,9 @@
                                     </ControlTemplate>
                                 </Button.Template>
                                 <DockPanel>
+                                    <!-- Collapsed sidebar shows only the favicon (see Ellipse below) — the
+                                         pin marker, close cross, and mute toggle all hide with it, one
+                                         consistent rule (DataTrigger below, last so it wins ties). -->
                                     <Path DockPanel.Dock="Left" Data="{StaticResource IconPin}"
                                           Width="12" Height="12" Margin="0,0,4,0">
                                         <Path.Style>
@@ -261,6 +264,9 @@
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsPinned}" Value="True">
                                                         <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -275,6 +281,9 @@
                                                     <DataTrigger Binding="{Binding IsPinned}" Value="True">
                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                     </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
@@ -282,6 +291,15 @@
                                     </Button>
                                     <Button DockPanel.Dock="Right" Width="20" Height="20" Padding="0" Margin="0,0,2,0"
                                             Command="{Binding ToggleMuteCommand}" ToolTip="Couper/réactiver le son">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DataContext.IsSidebarExpanded, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
                                         <Path Width="13" Height="13">
                                             <Path.Style>
                                                 <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">

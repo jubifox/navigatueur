@@ -17,8 +17,11 @@ namespace Navigatueur.App.Views;
 /// </summary>
 public partial class TabSidebarWindow : Window
 {
-    private const double CollapsedWidth = 52;
-    private const double ExpandedWidth = 220;
+    // Also read by MainWindow to size the content area's left inset, so the
+    // page sits flush against the sidebar in its docked (collapsed or pinned)
+    // state instead of being permanently covered by it.
+    internal const double CollapsedWidth = 52;
+    internal const double ExpandedWidth = 220;
 
     private readonly MainWindowViewModel _viewModel;
     private Point? _tabDragStart;

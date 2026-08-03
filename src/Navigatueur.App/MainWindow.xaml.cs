@@ -46,6 +46,7 @@ public partial class MainWindow : Window
 
         var viewModel = new MainWindowViewModel(AppServices.TabManager);
         DataContext = viewModel;
+        viewModel.PropertyChanged += OnMainViewModelPropertyChanged;
 
         if (AppServices.Settings.IsFirstRun)
         {
@@ -136,6 +137,33 @@ public partial class MainWindow : Window
         {
             ApplyAddressBarPosition();
         }
+    }
+
+    /// <summary>
+    /// Only reacts to IsSidebarPinned, not IsSidebarExpanded — a temporary
+    /// hover-expand should float the sidebar over the page (v0.12 behavior),
+    /// not shove the page's content aside. Only pinning the sidebar open
+    /// changes how much width it permanently reserves.
+    /// </summary>
+    private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarPinned) && sender is MainWindowViewModel vm)
+        {
+            AnimateContentInset(vm.IsSidebarPinned ? Views.TabSidebarWindow.ExpandedWidth : Views.TabSidebarWindow.CollapsedWidth);
+        }
+    }
+
+    private void AnimateContentInset(double toPixels)
+    {
+        var animation = new ThicknessAnimation
+        {
+            To = new Thickness(toPixels, 0, 0, 0),
+            Duration = TimeSpan.FromMilliseconds(280),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+        animation.Completed += (_, _) => ContentHost.Margin = new Thickness(toPixels, 0, 0, 0);
+        ContentHost.BeginAnimation(FrameworkElement.MarginProperty, animation);
     }
 
     /// <summary>

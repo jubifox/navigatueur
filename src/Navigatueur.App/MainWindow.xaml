@@ -227,12 +227,17 @@
             </DockPanel>
         </Border>
 
-        <!-- Content area now uses the full width — the tab strip lives in a separate
-             top-level window (TabSidebarWindow) that MainWindow positions/sizes to
-             track its own bounds, so it can visually render on top of WebView2's
-             native surface (see the comment in TabSidebarWindow.xaml for why a
-             separate window, not an in-window overlay, was needed for that). -->
-        <Grid Grid.Row="2">
+        <!-- The tab strip lives in a separate top-level window (TabSidebarWindow)
+             that MainWindow positions/sizes to track its own bounds, so it can
+             visually render on top of WebView2's native surface (see the comment
+             in TabSidebarWindow.xaml for why a separate window, not an in-window
+             overlay, was needed for that). This content Grid's left Margin
+             reserves exactly the sidebar's *docked* width (collapsed, or pinned-
+             expanded) so the page sits flush next to it in both docked states;
+             MainWindow animates that Margin only when IsSidebarPinned toggles.
+             A temporary hover-expand (not pinned) leaves this Margin alone, so
+             the sidebar floats over the page instead of shoving it aside. -->
+        <Grid Grid.Row="2" x:Name="ContentHost" Margin="52,0,0,0">
             <ItemsControl ItemsSource="{Binding Tabs}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
