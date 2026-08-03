@@ -27,8 +27,7 @@ public partial class MainWindow : Window
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _forceClose;
     private readonly DispatcherTimer _autosaveTimer;
-    private bool _isAnimatingSidebarWidth;
-    private double _preferredExpandedWidth = SidebarExpandedWidth;
+    private readonly double _preferredExpandedWidth = SidebarExpandedWidth;
 
     public MainWindow()
     {
@@ -63,13 +62,11 @@ public partial class MainWindow : Window
         _autosaveTimer.Tick += (_, _) => SaveSessionState();
         _autosaveTimer.Start();
 
-        // GridSplitter drags set ColumnDefinition.Width directly, bypassing
-        // AnimateTabColumnWidth entirely — this is the only way to notice a
-        // manual resize and remember it, so the next hover-expand restores the
-        // user's own width instead of snapping back to the hardcoded default.
-        DependencyPropertyDescriptor
-            .FromProperty(ColumnDefinition.WidthProperty, typeof(ColumnDefinition))
-            .AddValueChanged(TabColumnDefinition, OnTabColumnWidthChanged);
+        // Only fires for genuinely new tabs (toolbar button, Ctrl+T) — not session
+        // restore or reopening a saved group, which create tabs directly and
+        // shouldn't steal focus on startup.
+        AppServices.TabManager.TabOpened += _ => Dispatcher.BeginInvoke(
+            new Action(FocusAddressBar), DispatcherPriority.Input);
 
         AppServices.RequestForceQuit = () =>
         {
@@ -169,51 +166,98 @@ public partial class MainWindow : Window
         AnimateTabColumnWidth(isOver ? _preferredExpandedWidth : SidebarCollapsedWidth);
     }
 
+    /// <summary>
+    /// Animates TabColumnHost's own Width — a plain double (FrameworkElement.Width),
+    /// not a Grid column — so this is a completely ordinary DoubleAnimation. The
+    /// content area's real layout size never changes, since the tab strip now
+    /// floats over it (see the XAML comment above TabColumnHost) instead of
+    /// resizing the Grid column it used to live in.
+    /// </summary>
     private void AnimateTabColumnWidth(double toPixels)
     {
-        _isAnimatingSidebarWidth = true;
-
         // EaseOut front-loads most of the size change into the first frames, which
         // read as an instant "pop" to the eye rather than a glide — EaseInOut spreads
         // the motion evenly across the whole duration instead.
-        var animation = new GridLengthAnimation
+        var animation = new DoubleAnimation
         {
-            From = TabColumnDefinition.Width,
-            To = new GridLength(toPixels),
+            To = toPixels,
             Duration = TimeSpan.FromMilliseconds(280),
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
             FillBehavior = FillBehavior.Stop,
         };
-
-        // FillBehavior.Stop releases the animation's hold on the property as soon
-        // as it completes; without this, WPF keeps Width "animated" forever and a
-        // later GridSplitter drag (which sets Width directly) would be ignored.
-        animation.Completed += (_, _) =>
-        {
-            TabColumnDefinition.Width = new GridLength(toPixels);
-            _isAnimatingSidebarWidth = false;
-        };
-        TabColumnDefinition.BeginAnimation(ColumnDefinition.WidthProperty, animation);
+        animation.Completed += (_, _) => TabColumnHost.Width = toPixels;
+        TabColumnHost.BeginAnimation(FrameworkElement.WidthProperty, animation);
     }
 
     /// <summary>
-    /// Fires for every Width change on TabColumnDefinition, including our own
-    /// per-frame animation ticks — only a manual GridSplitter drag (the only
-    /// other thing that ever sets this property) should update the remembered
-    /// "preferred expanded width", so animation-driven changes are ignored.
+    /// Standard browser shortcuts. Only ever fires while a WPF element has
+    /// keyboard focus (address bar, tab strip, toolbar) — WebView2 hosts page
+    /// content in a separate native child window, so these don't fire while
+    /// focus is inside a page itself, same limitation as Ctrl+F noted elsewhere.
     /// </summary>
-    private void OnTabColumnWidthChanged(object? sender, EventArgs e)
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (_isAnimatingSidebarWidth)
+        var vm = (MainWindowViewModel)DataContext;
+
+        if (e.Key == Key.F5)
+        {
+            vm.ActiveTab?.ReloadCommand.Execute(null);
+            e.Handled = true;
+            return;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
         {
             return;
         }
 
-        var width = TabColumnDefinition.Width.Value;
-        if (width > SidebarCollapsedWidth + 4)
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
+        switch (e.Key)
         {
-            _preferredExpandedWidth = width;
+            case Key.T:
+                AppServices.TabManager.OpenTab();
+                e.Handled = true;
+                break;
+            case Key.W:
+                if (vm.ActiveTab is { } activeTab)
+                {
+                    AppServices.TabManager.CloseTab(activeTab);
+                }
+
+                e.Handled = true;
+                break;
+            case Key.Tab:
+                AppServices.TabManager.ActivateAdjacentTab(shift ? -1 : 1);
+                e.Handled = true;
+                break;
+            case Key.L:
+                FocusAddressBar();
+                e.Handled = true;
+                break;
+            case Key.R:
+                vm.ActiveTab?.ReloadCommand.Execute(null);
+                e.Handled = true;
+                break;
+            case Key.N when shift:
+                OnOpenPrivateWindowClick(this, new RoutedEventArgs());
+                e.Handled = true;
+                break;
+            case >= Key.D1 and <= Key.D8:
+                AppServices.TabManager.ActivateTabAtIndex(e.Key - Key.D1);
+                e.Handled = true;
+                break;
+            case Key.D9:
+                AppServices.TabManager.ActivateLastTab();
+                e.Handled = true;
+                break;
         }
+    }
+
+    private void FocusAddressBar()
+    {
+        AddressBarTextBox.Focus();
+        AddressBarTextBox.SelectAll();
     }
 
     private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
@@ -498,6 +542,83 @@ public partial class MainWindow : Window
         {
             textBox.SelectAll();
         }
+    }
+
+    private static readonly string[] CommonSiteSuggestions =
+    {
+        "youtube.com", "google.com", "github.com", "wikipedia.org", "reddit.com",
+        "twitter.com", "amazon.com", "netflix.com", "gmail.com", "twitch.tv",
+        "instagram.com", "linkedin.com", "spotify.com", "discord.com",
+    };
+
+    private bool _isApplyingAddressBarSuggestion;
+    private int _lastAddressBarTypedLength;
+
+    /// <summary>
+    /// Classic omnibox-style inline completion: appends the best-matching
+    /// hostname as *selected* text past the caret, so the next keystroke
+    /// (which types over a selection) naturally overwrites it, and Enter
+    /// navigates to the completed URL if left untouched.
+    /// </summary>
+    private void OnAddressBarTextBoxTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_isApplyingAddressBarSuggestion)
+        {
+            return;
+        }
+
+        var textBox = (TextBox)sender;
+        var typed = textBox.Text;
+        var isDeleting = typed.Length < _lastAddressBarTypedLength;
+        _lastAddressBarTypedLength = typed.Length;
+
+        if (isDeleting || string.IsNullOrEmpty(typed) || textBox.SelectionStart != typed.Length)
+        {
+            return;
+        }
+
+        var suggestion = FindAddressBarSuggestion(typed);
+        if (suggestion is null || suggestion.Length <= typed.Length)
+        {
+            return;
+        }
+
+        _isApplyingAddressBarSuggestion = true;
+        textBox.Text = suggestion;
+        textBox.SelectionStart = typed.Length;
+        textBox.SelectionLength = suggestion.Length - typed.Length;
+        _isApplyingAddressBarSuggestion = false;
+    }
+
+    /// <summary>Best-matching hostname (history first, then a handful of common sites for a cold history), or null if nothing starts with what's typed.</summary>
+    private static string? FindAddressBarSuggestion(string typed)
+    {
+        if (typed.Contains(' ') || typed.Contains('/'))
+        {
+            return null; // looks like a search query or a path, not a bare domain being typed
+        }
+
+        var historyHosts = AppServices.History.Entries
+            .Select(entry => TryGetHost(entry.Url))
+            .Where(host => host is not null)
+            .Cast<string>();
+
+        return historyHosts
+            .Concat(CommonSiteSuggestions)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(host => host.StartsWith(typed, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(host => host.Length)
+            .FirstOrDefault();
+    }
+
+    private static string? TryGetHost(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        return uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
     }
 
     private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)

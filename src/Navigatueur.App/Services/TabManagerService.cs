@@ -84,13 +84,48 @@ public partial class TabManagerService : ObservableObject
         }
     }
 
+    /// <summary>Raised whenever a genuinely new tab is created via <see cref="OpenTab"/> — not for tabs recreated during session restore or bulk-reopen of a saved group, which shouldn't steal focus.</summary>
+    public event Action<BrowserTabViewModel>? TabOpened;
+
     public BrowserTabViewModel OpenTab(string? url = null)
     {
         var tab = new BrowserTabViewModel(url ?? _settings.HomePageUrl, this);
         AttachTabHandlers(tab);
         Tabs.Add(tab);
         ActivateTab(tab);
+        TabOpened?.Invoke(tab);
         return tab;
+    }
+
+    /// <summary>Cycles the active tab forward (+1) or backward (-1) through <see cref="Tabs"/>, wrapping around. Used by Ctrl+Tab / Ctrl+Shift+Tab.</summary>
+    public void ActivateAdjacentTab(int direction)
+    {
+        if (Tabs.Count == 0)
+        {
+            return;
+        }
+
+        var currentIndex = ActiveTab is null ? -1 : Tabs.IndexOf(ActiveTab);
+        var nextIndex = ((currentIndex + direction) % Tabs.Count + Tabs.Count) % Tabs.Count;
+        ActivateTab(Tabs[nextIndex]);
+    }
+
+    /// <summary>Used by Ctrl+1..Ctrl+8 to jump straight to a tab by its position.</summary>
+    public void ActivateTabAtIndex(int index)
+    {
+        if (index >= 0 && index < Tabs.Count)
+        {
+            ActivateTab(Tabs[index]);
+        }
+    }
+
+    /// <summary>Used by Ctrl+9, matching the browser convention of always jumping to the last tab regardless of count.</summary>
+    public void ActivateLastTab()
+    {
+        if (Tabs.Count > 0)
+        {
+            ActivateTab(Tabs[^1]);
+        }
     }
 
     /// <summary>Pinning is toggled by the tab itself (context menu), so the strip needs to react even without going through a TabManagerService method.</summary>

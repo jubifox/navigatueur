@@ -9,7 +9,8 @@
         Background="{DynamicResource ChromeBackgroundBrush}"
         WindowStyle="None" ResizeMode="CanResize"
         Height="800" Width="1280"
-        PreviewMouseMove="OnWindowMouseMoveForTrail">
+        PreviewMouseMove="OnWindowMouseMoveForTrail"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="32" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
@@ -200,7 +201,8 @@
                 <Border x:Name="AddressBarTopSlot">
                     <TextBox x:Name="AddressBarTextBox" VerticalContentAlignment="Center"
                              Text="{Binding ActiveTab.AddressBarDisplayText, UpdateSourceTrigger=PropertyChanged}"
-                             PreviewMouseLeftButtonDown="OnAddressBarPreviewMouseLeftButtonDown">
+                             PreviewMouseLeftButtonDown="OnAddressBarPreviewMouseLeftButtonDown"
+                             TextChanged="OnAddressBarTextBoxTextChanged">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
                         </TextBox.InputBindings>
@@ -227,21 +229,45 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="TabColumnDefinition" Width="52" MinWidth="52" MaxWidth="400" />
-                <ColumnDefinition Width="4" />
+                <ColumnDefinition Width="52" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
+            <!-- Content area: Grid.Column="1", a FIXED size that never changes during sidebar
+                 hover. This is what actually fixed the sidebar animation being janky: it used
+                 to live in a Grid column whose width the hover animation drove directly, which
+                 forced WebView2's native child window to resize on every single animation frame
+                 (expensive and stuttery in a way pure WPF element resizing isn't). Now WebView2's
+                 real estate never moves; the tab strip below floats on top of it instead. -->
+            <Grid Grid.Column="1">
+                <ItemsControl ItemsSource="{Binding Tabs}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <Grid />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <views:BrowserTabView Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+
             <!--
               Vertical tab strip: compact by default, expands on hover unless pinned
-              (Zen-browser-style). Driven by a geometric position check in the
+              (Zen-browser-style) — floats over the content area (ColumnSpan across both
+              columns, Z-ordered after the content Grid above so it paints on top) instead
+              of resizing a real Grid column. Driven by a geometric position check in the
               Window-level PreviewMouseMove handler (OnWindowMouseMoveForSidebarHover)
               rather than this element's own MouseEnter/Leave — element-level hit-testing
               proved unreliable here (see git history), and the Window already has a
               PreviewMouseMove hook for the cursor trail that reliably fires across the
               whole WPF chrome area.
             -->
-            <Border x:Name="TabColumnHost" Grid.Column="0" Background="Transparent">
+            <Border x:Name="TabColumnHost" Grid.Column="0" Grid.ColumnSpan="2" HorizontalAlignment="Left"
+                    Width="52" Background="{DynamicResource ChromeBackgroundBrush}"
+                    BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
                 <Border x:Name="AddressBarSidebarSlot" DockPanel.Dock="Top" Margin="4,4,4,2" />
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -595,23 +621,6 @@
                 </DockPanel>
             </Border>
 
-            <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" Background="{DynamicResource ChromeBorderBrush}" />
-
-            <!-- Content area: each BrowserTabView creates/disposes its own WebView2 based on IsSuspended; only the active one is visible. -->
-            <Grid Grid.Column="2">
-                <ItemsControl ItemsSource="{Binding Tabs}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <Grid />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <views:BrowserTabView Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}" />
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </Grid>
         </Grid>
 
         <Border Grid.Row="3" x:Name="AddressBarBottomSlot" Padding="6"
