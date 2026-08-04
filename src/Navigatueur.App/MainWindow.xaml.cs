@@ -15,7 +15,7 @@ using Navigatueur.Core.Settings;
 
 namespace Navigatueur.App;
 
-public partial class MainWindow : Window
+public partial class MainWindow : Window, Views.IWebViewOverlayHost
 {
     private readonly Views.MusicOverlayWindow _musicOverlay = new();
     private Views.SettingsWindow? _settingsWindow;
@@ -23,6 +23,9 @@ public partial class MainWindow : Window
     private Views.HistoryWindow? _historyWindow;
     private Views.PrivateBrowsingWindow? _privateWindow;
     private Views.TabSidebarWindow? _tabSidebarWindow;
+    private Views.WebViewOverlayWindow? _webViewOverlay;
+
+    public Canvas? WebViewTrailCanvas => _webViewOverlay?.TrailCanvas;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
     private bool _forceClose;
     private readonly DispatcherTimer _autosaveTimer;
@@ -95,6 +98,10 @@ public partial class MainWindow : Window
         // constructor fell back to the top toolbar slot since the sidebar
         // window didn't exist yet at that point.
         ApplyAddressBarPosition();
+
+        _webViewOverlay = new Views.WebViewOverlayWindow { Owner = this };
+        _webViewOverlay.Show();
+
         RepositionTabSidebar();
     }
 
@@ -115,6 +122,7 @@ public partial class MainWindow : Window
         if (WindowState == WindowState.Minimized)
         {
             _tabSidebarWindow.Hide();
+            _webViewOverlay?.Hide();
             return;
         }
 
@@ -129,6 +137,41 @@ public partial class MainWindow : Window
         if (!_tabSidebarWindow.IsVisible)
         {
             _tabSidebarWindow.Show();
+        }
+
+        RepositionWebViewOverlay(topOffset, bottomOffset);
+    }
+
+    /// <summary>
+    /// Tracks ContentHost's own on-screen rect (not the sidebar's) — the
+    /// area WebView2 actually renders into. ContentHost.Margin.Left is the
+    /// docked sidebar inset (see AnimateContentInset), so this stays correct
+    /// whether the sidebar is collapsed or pinned open, and doesn't move for
+    /// a temporary hover-expand (which floats over content instead).
+    /// </summary>
+    private void RepositionWebViewOverlay(double topOffset, double bottomOffset)
+    {
+        if (_webViewOverlay is null)
+        {
+            return;
+        }
+
+        if (WindowState == WindowState.Minimized)
+        {
+            _webViewOverlay.Hide();
+            return;
+        }
+
+        var leftInset = ContentHost.Margin.Left;
+        _webViewOverlay.SyncBounds(
+            Left + leftInset,
+            Top + topOffset,
+            ActualWidth - leftInset,
+            Math.Max(0, ActualHeight - topOffset - bottomOffset));
+
+        if (!_webViewOverlay.IsVisible)
+        {
+            _webViewOverlay.Show();
         }
     }
 
@@ -163,7 +206,11 @@ public partial class MainWindow : Window
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
             FillBehavior = FillBehavior.Stop,
         };
-        animation.Completed += (_, _) => ContentHost.Margin = new Thickness(toPixels, 0, 0, 0);
+        animation.Completed += (_, _) =>
+        {
+            ContentHost.Margin = new Thickness(toPixels, 0, 0, 0);
+            RepositionTabSidebar();
+        };
         ContentHost.BeginAnimation(FrameworkElement.MarginProperty, animation);
     }
 

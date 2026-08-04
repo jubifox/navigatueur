@@ -32,9 +32,12 @@ public partial class App : Application
             using var stream = File.OpenRead(path);
             Current.Resources["AppCursor"] = new Cursor(stream);
         }
-        catch (IOException)
+        catch (Exception)
         {
-            // Missing/corrupt cursor asset — fall back to the OS default silently.
+            // Missing/corrupt cursor asset (including a .cur saved with a
+            // PNG-compressed image, which WPF's Cursor(Stream) can't parse —
+            // it needs the classic BMP-based DIB cursor format) — fall back
+            // to the OS default silently rather than crashing startup.
         }
     }
 }

@@ -268,20 +268,33 @@ public partial class BrowserTabView : UserControl
     }
 
     private CursorTrailTracker? _cursorTrailTracker;
+    private Canvas? _trailCanvas;
 
     /// <summary>
     /// clientX/clientY are in CSS/viewport pixels, which shrink relative to
     /// the WebView2 control's actual on-screen size as ZoomFactor increases
     /// (more zoom = fewer CSS pixels fit the same physical viewport) — so
-    /// they need scaling by the current zoom to land in the right spot on
-    /// this control-relative overlay.
+    /// they need scaling by the current zoom to land in the right spot.
+    /// Drawn onto the host window's WebViewOverlayWindow, not a same-window
+    /// Canvas here — this control lives in the same window as the WebView2
+    /// it's tracking, so anything drawn locally would be silently hidden
+    /// behind it (WPF's "airspace" limitation, see WebViewOverlayWindow's
+    /// doc comment). The overlay is already positioned to exactly cover this
+    /// control's on-screen area when it's the active tab, so the same local
+    /// point works unchanged in the overlay's own coordinate space.
     /// </summary>
     private void SpawnTrailPoint(double clientX, double clientY)
     {
+        _trailCanvas ??= (Window.GetWindow(this) as IWebViewOverlayHost)?.WebViewTrailCanvas;
+        if (_trailCanvas is null)
+        {
+            return;
+        }
+
         var zoom = _webView?.ZoomFactor ?? 1.0;
         var position = new Point(clientX * zoom, clientY * zoom);
 
-        _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailOverlay);
+        _cursorTrailTracker ??= new CursorTrailTracker(_trailCanvas);
         _cursorTrailTracker.OnMove(position);
     }
 

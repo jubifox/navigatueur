@@ -5,7 +5,8 @@
         xmlns:vm="clr-namespace:Navigatueur.App.ViewModels"
         Title="" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
         Background="{DynamicResource ChromeBackgroundBrush}"
-        MouseEnter="OnMouseEnter" MouseLeave="OnMouseLeave">
+        MouseEnter="OnMouseEnter" MouseLeave="OnMouseLeave"
+        PreviewMouseMove="OnPreviewMouseMoveForTrail">
     <!--
       This is a genuinely separate top-level window, not an in-window overlay —
       that's the whole point. WebView2 hosts page content in its own native child
@@ -412,5 +413,9 @@
             </ScrollViewer>
         </DockPanel>
     </Border>
+
+    <!-- Same accent-colored cursor trail as MainWindow's own chrome — this window has no
+         WebView2 child, so a plain same-window Canvas on top works fine (no airspace issue). -->
+    <Canvas x:Name="CursorTrailCanvas" IsHitTestVisible="False" />
     </Grid>
 </Window>

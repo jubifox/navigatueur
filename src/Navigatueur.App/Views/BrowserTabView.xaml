@@ -20,10 +20,5 @@
                 </StackPanel>
             </DockPanel>
         </Border>
-
-        <!-- Trail dots for the current page's content, positioned from coordinates the page itself
-             reports via a JS mousemove bridge — WebView2's own content is a separate native child
-             window, so WPF never sees mouse moves over it directly. See EnsureLoadedAsync. -->
-        <Canvas x:Name="CursorTrailOverlay" IsHitTestVisible="False" ClipToBounds="True" />
     </Grid>
 </UserControl>

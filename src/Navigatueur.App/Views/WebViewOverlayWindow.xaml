@@ -1,0 +1,32 @@
+<Window x:Class="Navigatueur.App.Views.WebViewOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent">
+    <!--
+      A transparent, click-through owned window that floats exactly over the
+      active tab's WebView2 render area — same reason TabSidebarWindow is a
+      separate window (see its own doc comment): WPF's "airspace" limitation
+      means nothing in the SAME window as WebView2's native child HWND can
+      ever visually render on top of it, no matter its declared Z-order. This
+      window doesn't have that limitation, so both effects below actually
+      become visible instead of being silently hidden behind the page:
+
+      1. A cursor trail over actual page content (previously drawn to a
+         same-window Canvas in BrowserTabView that could never be seen).
+      2. Four small corner "masks" painted in the chrome background color,
+         faking WebView2's rectangular native surface having rounded corners
+         — real corner clipping isn't possible on it either, for the same
+         underlying reason.
+
+      Click-through via WS_EX_TRANSPARENT (set in code-behind once the window
+      has a real handle) so it never intercepts clicks/scrolls meant for the
+      page underneath; the trail is driven by page-reported coordinates
+      (BrowserTabView's existing JS mousemove bridge), not by this window
+      receiving input directly.
+    -->
+    <Grid IsHitTestVisible="False">
+        <Path x:Name="CornerMaskPath" Fill="{DynamicResource ChromeBackgroundBrush}" IsHitTestVisible="False" />
+        <Canvas x:Name="TrailCanvasElement" IsHitTestVisible="False" ClipToBounds="True" />
+    </Grid>
+</Window>

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using Navigatueur.App.Animation;
 using Navigatueur.App.Services;
 using Navigatueur.App.ViewModels;
 
@@ -96,6 +97,20 @@ public partial class TabSidebarWindow : Window
         };
         animation.Completed += (_, _) => Width = toPixels;
         BeginAnimation(WidthProperty, animation);
+    }
+
+    private CursorTrailTracker? _cursorTrailTracker;
+
+    /// <summary>Same accent-colored trail as MainWindow's own chrome — was previously never drawn here at all.</summary>
+    private void OnPreviewMouseMoveForTrail(object sender, MouseEventArgs e)
+    {
+        if (!AppServices.Theme.IsCursorTrailEnabled)
+        {
+            return;
+        }
+
+        _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailCanvas);
+        _cursorTrailTracker.OnMove(e.GetPosition(CursorTrailCanvas));
     }
 
     private void OnGroupNameEditPreviewMouseDown(object sender, MouseButtonEventArgs e)
