@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose owns all the actual theming (see ui/theme/Theme.kt) — this XML
+         theme only needs to give the Activity's window a sane no-action-bar
+         base before Compose content renders, so a plain framework theme is
+         enough; pulling in Material Components/AppCompat just for their XML
+         themes would be an unused dependency otherwise. -->
+    <style name="Theme.Navigatueur" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/chrome_background</item>
+        <item name="android:navigationBarColor">@color/chrome_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/chrome_background</item>
+    </style>
+</resources>
