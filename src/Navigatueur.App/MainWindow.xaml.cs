@@ -18,12 +18,9 @@ namespace Navigatueur.App;
 public partial class MainWindow : Window, Views.IWebViewOverlayHost
 {
     private readonly Views.MusicOverlayWindow _musicOverlay = new();
-    private Views.SettingsWindow? _settingsWindow;
-    private Views.ExtensionsWindow? _extensionsWindow;
-    private Views.HistoryWindow? _historyWindow;
-    private Views.PrivateBrowsingWindow? _privateWindow;
     private Views.TabSidebarWindow? _tabSidebarWindow;
     private Views.WebViewOverlayWindow? _webViewOverlay;
+    private Views.ToolbarWindow? _toolbarWindow;
 
     public Canvas? WebViewTrailCanvas => _webViewOverlay?.TrailCanvas;
     private System.Windows.Forms.NotifyIcon? _trayIcon;
@@ -102,6 +99,12 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         _webViewOverlay = new Views.WebViewOverlayWindow { Owner = this };
         _webViewOverlay.Show();
 
+        _toolbarWindow = new Views.ToolbarWindow(viewModel, this) { Owner = this };
+        _toolbarWindow.Show();
+
+        // Re-run again now that the toolbar (and its AddressBarTopSlot) exists.
+        ApplyAddressBarPosition();
+
         RepositionTabSidebar();
     }
 
@@ -123,10 +126,13 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         {
             _tabSidebarWindow.Hide();
             _webViewOverlay?.Hide();
+            _toolbarWindow?.Hide();
             return;
         }
 
-        var topOffset = TitleBarBorder.ActualHeight + ToolbarBorder.ActualHeight;
+        // Just the title bar now — the toolbar no longer occupies a fixed Grid
+        // row of its own (see ToolbarWindow), so content starts right below it.
+        var topOffset = TitleBarBorder.ActualHeight;
         var bottomOffset = AddressBarBottomSlot.Child is not null ? AddressBarBottomSlot.ActualHeight : 0;
 
         _tabSidebarWindow.Left = Left;
@@ -140,6 +146,31 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         }
 
         RepositionWebViewOverlay(topOffset, bottomOffset);
+        RepositionToolbar(topOffset);
+    }
+
+    /// <summary>
+    /// Docks ToolbarWindow to the top of the content area (same left inset as
+    /// WebViewOverlayWindow, so it starts flush with the page, not over the
+    /// sidebar) — it floats there rather than reserving space, expanding
+    /// downward over the page on hover instead of pushing content down.
+    /// </summary>
+    private void RepositionToolbar(double topOffset)
+    {
+        if (_toolbarWindow is null)
+        {
+            return;
+        }
+
+        var leftInset = ContentHost.Margin.Left;
+        _toolbarWindow.Left = Left + leftInset;
+        _toolbarWindow.Top = Top + topOffset;
+        _toolbarWindow.Width = Math.Max(0, ActualWidth - leftInset);
+
+        if (!_toolbarWindow.IsVisible)
+        {
+            _toolbarWindow.Show();
+        }
     }
 
     /// <summary>
@@ -215,16 +246,23 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
     }
 
     /// <summary>
-    /// The address bar is a single TextBox instance moved between three empty
-    /// slot Borders (top toolbar, bottom of the window, top of the tab
-    /// sidebar — the latter now living in the separate TabSidebarWindow)
-    /// rather than duplicated, so there's exactly one source of truth for
-    /// its focus/selection state regardless of where it's docked.
+    /// The address bar is a single TextBox instance moved between empty slot
+    /// Borders (top toolbar — now in the separate ToolbarWindow, bottom of
+    /// the window, top of the tab sidebar — in TabSidebarWindow) rather than
+    /// duplicated, so there's exactly one source of truth for its
+    /// focus/selection state regardless of where it's docked. Falls back to
+    /// AddressBarInitialHost (an always-Collapsed placeholder declared in
+    /// MainWindow.xaml) before ToolbarWindow/TabSidebarWindow exist yet.
     /// </summary>
     private void ApplyAddressBarPosition()
     {
-        AddressBarTopSlot.Child = null;
+        AddressBarInitialHost.Child = null;
         AddressBarBottomSlot.Child = null;
+        if (_toolbarWindow is not null)
+        {
+            _toolbarWindow.AddressBarTopSlot.Child = null;
+        }
+
         if (_tabSidebarWindow is not null)
         {
             _tabSidebarWindow.AddressBarSidebarSlot.Child = null;
@@ -233,8 +271,8 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         var target = AppServices.Theme.AddressBarPosition switch
         {
             "Bottom" => AddressBarBottomSlot,
-            "Sidebar" => _tabSidebarWindow?.AddressBarSidebarSlot ?? AddressBarTopSlot,
-            _ => AddressBarTopSlot,
+            "Sidebar" => _tabSidebarWindow?.AddressBarSidebarSlot ?? _toolbarWindow?.AddressBarTopSlot ?? AddressBarInitialHost,
+            _ => _toolbarWindow?.AddressBarTopSlot ?? AddressBarInitialHost,
         };
         target.Child = AddressBarTextBox;
         RepositionTabSidebar();
@@ -310,7 +348,7 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
                 e.Handled = true;
                 break;
             case Key.N when shift:
-                OnOpenPrivateWindowClick(this, new RoutedEventArgs());
+                _toolbarWindow?.OpenPrivateWindow();
                 e.Handled = true;
                 break;
             case >= Key.D1 and <= Key.D8:
@@ -337,7 +375,8 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
-    private void OnToggleMusicOverlayClick(object sender, RoutedEventArgs e)
+    /// <summary>Called from ToolbarWindow's music button — the overlay's own lifecycle (and the tray-background logic in OnClosing) stays here in MainWindow.</summary>
+    public void ToggleMusicOverlay()
     {
         if (_musicOverlay.IsVisible)
         {
@@ -368,6 +407,7 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
             SaveSessionState();
             Hide();
             _tabSidebarWindow?.Hide();
+            _toolbarWindow?.Hide();
             ShowTrayIcon();
             return;
         }
@@ -471,142 +511,6 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         }
     }
 
-    private async void OnUpdateClick(object sender, RoutedEventArgs e)
-    {
-        var update = AppServices.Update;
-        var result = MessageBox.Show(
-            this,
-            $"Une nouvelle version ({update.LatestVersion}) est disponible. Télécharger et installer maintenant ? L'application va se fermer pendant l'installation.",
-            "Mise à jour disponible",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            await update.DownloadAndInstallAsync();
-        }
-    }
-
-    private void OnOpenExtensionsClick(object sender, RoutedEventArgs e)
-    {
-        if (_extensionsWindow is null)
-        {
-            _extensionsWindow = new Views.ExtensionsWindow { Owner = this };
-            _extensionsWindow.Closed += (_, _) => _extensionsWindow = null;
-            _extensionsWindow.Show();
-        }
-        else
-        {
-            _extensionsWindow.Activate();
-        }
-    }
-
-    private async void OnSaveAsClick(object sender, RoutedEventArgs e)
-    {
-        var activeTab = (DataContext as MainWindowViewModel)?.ActiveTab;
-        if (activeTab is null)
-        {
-            return;
-        }
-
-        var mhtml = await activeTab.CaptureMhtmlAsync();
-        if (mhtml is null)
-        {
-            MessageBox.Show(this, "Impossible d'enregistrer cette page.", "Enregistrer sous",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var suggestedName = SanitizeFileName(string.IsNullOrWhiteSpace(activeTab.Title) ? "page" : activeTab.Title);
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Filter = "Page web (*.mhtml)|*.mhtml",
-            FileName = suggestedName,
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            await File.WriteAllTextAsync(dialog.FileName, mhtml);
-        }
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            name = name.Replace(invalid, '_');
-        }
-
-        return name;
-    }
-
-    private void OnTranslatePageClick(object sender, RoutedEventArgs e) =>
-        ((DataContext as MainWindowViewModel)?.ActiveTab)?.TranslatePageCommand.Execute(null);
-
-    /// <summary>
-    /// Chromium already handles Ctrl+F natively (find-in-page toolbar) when
-    /// the embedded WebView2 has keyboard focus — that shortcut is never
-    /// routed through WPF at all, since WebView2 is a separate native HWND.
-    /// This menu entry just focuses the page and forwards the same keystroke
-    /// for people who'd rather click a menu item than remember the shortcut.
-    /// </summary>
-    private void OnFindInPageClick(object sender, RoutedEventArgs e)
-    {
-        var webView = (DataContext as MainWindowViewModel)?.ActiveTab?.WebViewControl;
-        if (webView is null)
-        {
-            return;
-        }
-
-        webView.Focus();
-        System.Windows.Forms.SendKeys.SendWait("^f");
-    }
-
-    private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
-    {
-        if (_historyWindow is null)
-        {
-            _historyWindow = new Views.HistoryWindow { Owner = this };
-            _historyWindow.Closed += (_, _) => _historyWindow = null;
-            _historyWindow.Show();
-        }
-        else
-        {
-            _historyWindow.Activate();
-        }
-    }
-
-    private void OnOpenSettingsClick(object sender, RoutedEventArgs e)
-    {
-        if (_settingsWindow is null)
-        {
-            _settingsWindow = new Views.SettingsWindow { Owner = this };
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-            _settingsWindow.Show();
-        }
-        else
-        {
-            _settingsWindow.Activate();
-        }
-    }
-
-    private void OnOpenPrivateWindowClick(object sender, RoutedEventArgs e)
-    {
-        if (_privateWindow is null)
-        {
-            _privateWindow = new Views.PrivateBrowsingWindow();
-            _privateWindow.Closed += (_, _) => _privateWindow = null;
-            _privateWindow.Show();
-        }
-        else
-        {
-            _privateWindow.Activate();
-        }
-    }
-
-    private void OnToggleDownloadsClick(object sender, RoutedEventArgs e) =>
-        DownloadsPopup.IsOpen = !DownloadsPopup.IsOpen;
-
     /// <summary>WPF's TextBox only handles double-click (select word) natively — triple-click (select the whole address) needs an explicit hook.</summary>
     private void OnAddressBarPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -701,20 +605,8 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         return uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
     }
 
-    private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu })
-        {
-            menu.IsOpen = true;
-        }
-    }
+    /// <summary>Keeps ToolbarWindow expanded for the whole time the user is actively typing a URL, instead of retracting mid-type if the mouse happens to drift off it.</summary>
+    private void OnAddressBarGotKeyboardFocus(object sender, RoutedEventArgs e) => _toolbarWindow?.SetForcedExpanded(true);
 
-    private void OnOpenMoreMenuClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu })
-        {
-            menu.IsOpen = true;
-        }
-    }
-
+    private void OnAddressBarLostKeyboardFocus(object sender, RoutedEventArgs e) => _toolbarWindow?.SetForcedExpanded(false);
 }

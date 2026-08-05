@@ -48,7 +48,6 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -80,151 +79,39 @@
             </DockPanel>
         </Border>
 
-        <!-- Toolbar -->
-        <Border x:Name="ToolbarBorder" Grid.Row="1" Padding="6" BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,0,0,1">
-            <DockPanel>
-                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" Margin="0,0,8,0">
-                    <Button Width="32" Command="{Binding ActiveTab.GoBackCommand}" ToolTip="Précédent">
-                        <Path Data="{StaticResource IconBack}" Style="{StaticResource VectorIcon}" />
-                    </Button>
-                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.GoForwardCommand}" ToolTip="Suivant">
-                        <Path Data="{StaticResource IconForward}" Style="{StaticResource VectorIcon}" />
-                    </Button>
-                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.ReloadCommand}" ToolTip="Actualiser">
-                        <Path Data="{StaticResource IconRefresh}" Style="{StaticResource VectorIcon}" />
-                    </Button>
-                    <Button Width="32" Margin="4,0,0,0" Command="{Binding ActiveTab.TogglePictureInPictureCommand}" ToolTip="Picture-in-Picture">
-                        <Path Data="{StaticResource IconPip}" Style="{StaticResource VectorIcon}" />
-                    </Button>
-                </StackPanel>
-                <Button x:Name="DownloadsButton" Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnToggleDownloadsClick" ToolTip="Téléchargements">
-                    <Grid>
-                        <Path Data="{StaticResource IconDownload}" Style="{StaticResource VectorIcon}" />
-                        <Ellipse Width="7" Height="7" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-2,0"
-                                 Visibility="{Binding Downloads.HasActiveDownloads, Converter={StaticResource BoolToVis}}" />
-                    </Grid>
-                </Button>
-                <Popup x:Name="DownloadsPopup" PlacementTarget="{Binding ElementName=DownloadsButton}" Placement="Bottom" StaysOpen="False">
-                    <Border Background="{DynamicResource ChromeBackgroundBrush}" BorderBrush="{DynamicResource ChromeBorderBrush}"
-                            BorderThickness="1" CornerRadius="4" Padding="8" MinWidth="260" MaxHeight="320">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding Downloads.Downloads}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Margin="0,4,0,8">
-                                            <TextBlock Text="{Binding FileName}" TextTrimming="CharacterEllipsis"
-                                                       Foreground="{DynamicResource ChromeTextBrush}" FontSize="12" />
-                                            <ProgressBar Height="4" Minimum="0" Maximum="1" Value="{Binding Progress, Mode=OneWay}"
-                                                         Margin="0,4,0,2" Background="{DynamicResource SurfaceBrush}" Foreground="{DynamicResource AccentBrush}" BorderThickness="0" />
-                                            <DockPanel>
-                                                <TextBlock DockPanel.Dock="Left" Text="{Binding StatusText}"
-                                                           Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.6" FontSize="10" />
-                                                <Button DockPanel.Dock="Right" Content="Ouvrir le dossier" FontSize="10" Padding="4,0"
-                                                        Command="{Binding OpenFolderCommand}" HorizontalContentAlignment="Right" />
-                                            </DockPanel>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Border>
-                </Popup>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnToggleMusicOverlayClick" ToolTip="Contrôleur musique">
-                    <Path Data="{StaticResource IconMusic}" Style="{StaticResource VectorIcon}" />
-                </Button>
-                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="8,4" Click="OnUpdateClick"
-                        Background="{DynamicResource AccentBrush}"
-                        Visibility="{Binding Update.IsUpdateAvailable, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal">
-                        <Path Data="{StaticResource IconDownload}" Stroke="White" StrokeThickness="2"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Width="14" Height="14" Stretch="Uniform" Margin="0,0,6,0" />
-                        <TextBlock Text="Mise à jour" Foreground="White" VerticalAlignment="Center" FontSize="12" />
-                    </StackPanel>
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Command="{Binding ToggleSidebarPinnedCommand}" ToolTip="Épingler la colonne des onglets grande ouverte">
-                    <Path Data="{StaticResource IconPanelLeft}">
-                        <Path.Style>
-                            <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsSidebarPinned}" Value="True">
-                                        <Setter Property="Stroke" Value="{DynamicResource AccentBrush}" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Path.Style>
-                    </Path>
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenExtensionsClick" ToolTip="Extensions">
-                    <Path Data="{StaticResource IconPuzzle}" Style="{StaticResource VectorIcon}" />
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenMoreMenuClick" ToolTip="Plus d'outils">
-                    <Path Data="{StaticResource IconMoreVertical}" Style="{StaticResource VectorIcon}" />
-                    <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Historique" Click="OnOpenHistoryClick" />
-                            <MenuItem Header="Téléchargements" Click="OnToggleDownloadsClick" />
-                            <MenuItem Header="Enregistrer sous..." Click="OnSaveAsClick" />
-                            <MenuItem Header="Traduire la page" Click="OnTranslatePageClick" />
-                            <MenuItem Header="Rechercher dans la page" InputGestureText="Ctrl+F" Click="OnFindInPageClick" />
-                            <Separator />
-                            <MenuItem Header="Zoom +" Command="{Binding ActiveTab.ZoomInCommand}" />
-                            <MenuItem Header="Zoom -" Command="{Binding ActiveTab.ZoomOutCommand}" />
-                            <MenuItem Header="Réinitialiser le zoom" Command="{Binding ActiveTab.ResetZoomCommand}" />
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSettingsClick" ToolTip="Paramètres">
-                    <Path Data="{StaticResource IconSettings}" Style="{StaticResource VectorIcon}" />
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenPrivateWindowClick" ToolTip="Nouvelle fenêtre de navigation privée">
-                    <Path Data="{StaticResource IconPrivate}" Style="{StaticResource VectorIcon}" />
-                </Button>
-                <Button Width="32" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OnOpenSavedGroupsClick" ToolTip="Groupes enregistrés">
-                    <Path Data="{StaticResource IconFolder}" Style="{StaticResource VectorIcon}" />
-                    <Button.ContextMenu>
-                        <ContextMenu ItemsSource="{Binding SavedGroupMenuItems}">
-                            <ContextMenu.ItemContainerStyle>
-                                <Style TargetType="MenuItem">
-                                    <Setter Property="Header" Value="{Binding Header}" />
-                                    <Setter Property="Command" Value="{Binding Command}" />
-                                </Style>
-                            </ContextMenu.ItemContainerStyle>
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-                <Border DockPanel.Dock="Right" Margin="8,0,0,0" Padding="8,4" CornerRadius="4" Background="{DynamicResource SurfaceBrush}">
-                    <TextBlock VerticalAlignment="Center"
-                               Text="{Binding MemoryMonitor.UsedMegabytes, StringFormat='{}{0} Mo'}"
-                               Foreground="{Binding MemoryMonitor.UsedMegabytes, Converter={StaticResource RamUsageToBrushConverter}}" />
-                </Border>
-                <Border x:Name="AddressBarTopSlot">
-                    <TextBox x:Name="AddressBarTextBox" VerticalContentAlignment="Center"
-                             Text="{Binding ActiveTab.AddressBarDisplayText, UpdateSourceTrigger=PropertyChanged}"
-                             PreviewMouseLeftButtonDown="OnAddressBarPreviewMouseLeftButtonDown"
-                             TextChanged="OnAddressBarTextBoxTextChanged">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
-                        </TextBox.InputBindings>
-                        <TextBox.Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
-                                <Setter Property="Padding" Value="8,4" />
-                                <Setter Property="FontSize" Value="13" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Small">
-                                        <Setter Property="Padding" Value="6,2" />
-                                        <Setter Property="FontSize" Value="11" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Large">
-                                        <Setter Property="Padding" Value="12,8" />
-                                        <Setter Property="FontSize" Value="16" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBox.Style>
-                    </TextBox>
-                </Border>
-            </DockPanel>
+        <!-- The address bar TextBox is a single shared instance moved between slot
+             Borders at runtime (see ApplyAddressBarPosition) — Top/Sidebar slots now
+             live in ToolbarWindow/TabSidebarWindow (separate windows), Bottom stays
+             below. It needs *some* declared parent here since it's this XAML file's
+             code-behind that owns its event handlers; Collapsed because it's always
+             reparented immediately in the constructor, never actually shown here. -->
+        <Border x:Name="AddressBarInitialHost" Visibility="Collapsed">
+            <TextBox x:Name="AddressBarTextBox" VerticalContentAlignment="Center"
+                     Text="{Binding ActiveTab.AddressBarDisplayText, UpdateSourceTrigger=PropertyChanged}"
+                     PreviewMouseLeftButtonDown="OnAddressBarPreviewMouseLeftButtonDown"
+                     TextChanged="OnAddressBarTextBoxTextChanged"
+                     GotKeyboardFocus="OnAddressBarGotKeyboardFocus"
+                     LostKeyboardFocus="OnAddressBarLostKeyboardFocus">
+                <TextBox.InputBindings>
+                    <KeyBinding Key="Return" Command="{Binding ActiveTab.NavigateCommand}" />
+                </TextBox.InputBindings>
+                <TextBox.Style>
+                    <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                        <Setter Property="Padding" Value="8,4" />
+                        <Setter Property="FontSize" Value="13" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Small">
+                                <Setter Property="Padding" Value="6,2" />
+                                <Setter Property="FontSize" Value="11" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Theme.AddressBarSize}" Value="Large">
+                                <Setter Property="Padding" Value="12,8" />
+                                <Setter Property="FontSize" Value="16" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBox.Style>
+            </TextBox>
         </Border>
 
         <!-- The tab strip lives in a separate top-level window (TabSidebarWindow)
@@ -237,7 +124,7 @@
              MainWindow animates that Margin only when IsSidebarPinned toggles.
              A temporary hover-expand (not pinned) leaves this Margin alone, so
              the sidebar floats over the page instead of shoving it aside. -->
-        <Grid Grid.Row="2" x:Name="ContentHost" Margin="52,0,0,0">
+        <Grid Grid.Row="1" x:Name="ContentHost" Margin="52,0,0,0">
             <ItemsControl ItemsSource="{Binding Tabs}">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -252,7 +139,7 @@
             </ItemsControl>
         </Grid>
 
-        <Border Grid.Row="3" x:Name="AddressBarBottomSlot" Padding="6"
+        <Border Grid.Row="2" x:Name="AddressBarBottomSlot" Padding="6"
                 BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="0,1,0,0" />
     </Grid>
 
