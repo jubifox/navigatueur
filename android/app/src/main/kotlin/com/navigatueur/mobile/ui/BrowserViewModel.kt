@@ -32,6 +32,8 @@ class BrowserViewModel(
 
     var addressBarText by mutableStateOf("")
     var overlay by mutableStateOf(OverlayScreen.NONE)
+    var isFindInPageVisible by mutableStateOf(false)
+    var findInPageQuery by mutableStateOf("")
 
     val history = mutableStateListOf<HistoryEntry>()
     val bookmarks = mutableStateListOf<Bookmark>()
@@ -143,6 +145,11 @@ class BrowserViewModel(
     }
 
     fun isBookmarked(url: String?): Boolean = url != null && bookmarks.any { it.url == url }
+
+    /** Flips the tab's own flag; applying the new user-agent + reloading the live WebView is the caller's job (BrowserScreen), since that needs a WebView reference the ViewModel deliberately doesn't hold onto (leak risk across config changes). */
+    fun toggleDesktopSite() {
+        activeTab?.let { it.isDesktopSite = !it.isDesktopSite }
+    }
 
     fun removeBookmark(bookmark: Bookmark) {
         bookmarks.remove(bookmark)

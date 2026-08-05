@@ -1,6 +1,7 @@
 package com.navigatueur.mobile.ui
 
 import android.app.DownloadManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.webkit.CookieManager
@@ -13,11 +14,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.getSystemService
 import com.navigatueur.mobile.data.AdBlockManager
 import com.navigatueur.mobile.model.BrowserTab
+import com.navigatueur.mobile.model.DesktopUserAgent
 import java.io.ByteArrayInputStream
 
 /**
@@ -65,6 +68,9 @@ fun BrowserWebView(
                     settings.displayZoomControls = false
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
+                    if (tab.isDesktopSite) {
+                        settings.userAgentString = DesktopUserAgent
+                    }
 
                     webViewClient = object : WebViewClient() {
                         override fun shouldInterceptRequest(
@@ -92,6 +98,12 @@ fun BrowserWebView(
                         override fun onReceivedTitle(view: WebView, title: String?) {
                             if (title != null) {
                                 onPageNavigated(view.url ?: tab.url.orEmpty(), title)
+                            }
+                        }
+
+                        override fun onReceivedIcon(view: WebView, icon: Bitmap?) {
+                            if (icon != null) {
+                                tab.favicon = icon.asImageBitmap()
                             }
                         }
                     }

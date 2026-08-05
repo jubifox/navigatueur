@@ -17,9 +17,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Close
@@ -27,8 +28,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -91,6 +97,10 @@ fun BrowserScreen(viewModel: BrowserViewModel) {
             )
         }
 
+        if (viewModel.isFindInPageVisible) {
+            FindInPageBar(viewModel = viewModel, activeWebView = activeWebView)
+        }
+
         Box(modifier = Modifier.fillMaxSize()) {
             when (viewModel.overlay) {
                 OverlayScreen.TAB_SWITCHER -> TabSwitcherScreen(viewModel)
@@ -115,7 +125,40 @@ fun BrowserScreen(viewModel: BrowserViewModel) {
             }
         }
 
-        BottomBar(viewModel)
+        BottomBar(viewModel, activeWebView)
+    }
+}
+
+@Composable
+private fun FindInPageBar(viewModel: BrowserViewModel, activeWebView: WebView?) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(Surface).padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TextField(
+            value = viewModel.findInPageQuery,
+            onValueChange = {
+                viewModel.findInPageQuery = it
+                activeWebView?.findAllAsync(it)
+            },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            placeholder = { Text("Rechercher dans la page") },
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onSearch = { activeWebView?.findNext(true) },
+            ),
+        )
+        IconButton(onClick = { activeWebView?.findNext(true) }) {
+            Icon(Icons.Filled.Search, contentDescription = "Occurrence suivante", tint = ChromeText)
+        }
+        IconButton(onClick = {
+            viewModel.isFindInPageVisible = false
+            viewModel.findInPageQuery = ""
+            activeWebView?.clearMatches()
+        }) {
+            Icon(Icons.Filled.Close, contentDescription = "Fermer la recherche", tint = ChromeText)
+        }
     }
 }
 
@@ -126,10 +169,10 @@ private fun TopBar(viewModel: BrowserViewModel, activeWebView: WebView?, onSubmi
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = { activeWebView?.goBack() }, enabled = activeWebView?.canGoBack() == true) {
-            Icon(Icons.Filled.ArrowBack, contentDescription = "Précédent", tint = ChromeText)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Précédent", tint = ChromeText)
         }
         IconButton(onClick = { activeWebView?.goForward() }, enabled = activeWebView?.canGoForward() == true) {
-            Icon(Icons.Filled.ArrowForward, contentDescription = "Suivant", tint = ChromeText)
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Suivant", tint = ChromeText)
         }
         TextField(
             value = viewModel.addressBarText,
@@ -148,9 +191,10 @@ private fun TopBar(viewModel: BrowserViewModel, activeWebView: WebView?, onSubmi
 }
 
 @Composable
-private fun BottomBar(viewModel: BrowserViewModel) {
+private fun BottomBar(viewModel: BrowserViewModel, activeWebView: WebView?) {
     var menuOpen by remember { mutableStateOf(false) }
     val activeTab = viewModel.activeTab
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Row(
         modifier = Modifier.fillMaxWidth().background(Surface).padding(vertical = 4.dp),
@@ -218,6 +262,48 @@ private fun BottomBar(viewModel: BrowserViewModel) {
                     text = { Text("Paramètres") },
                     onClick = { menuOpen = false; viewModel.overlay = OverlayScreen.SETTINGS },
                 )
+
+                if (activeTab?.url != null) {
+                    androidx.compose.material3.HorizontalDivider()
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        text = { Text("Rechercher dans la page") },
+                        onClick = { menuOpen = false; viewModel.isFindInPageVisible = true },
+                    )
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Filled.ZoomIn, contentDescription = null) },
+                        text = { Text("Zoom +") },
+                        onClick = { activeWebView?.zoomIn() },
+                    )
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Filled.ZoomOut, contentDescription = null) },
+                        text = { Text("Zoom -") },
+                        onClick = { activeWebView?.zoomOut() },
+                    )
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Filled.Public, contentDescription = null) },
+                        text = { Text(if (activeTab.isDesktopSite) "Site mobile" else "Site pour ordinateur") },
+                        onClick = {
+                            menuOpen = false
+                            viewModel.toggleDesktopSite()
+                            activeWebView?.settings?.userAgentString =
+                                if (activeTab.isDesktopSite) com.navigatueur.mobile.model.DesktopUserAgent else null
+                            activeWebView?.reload()
+                        },
+                    )
+                    DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Filled.Share, contentDescription = null) },
+                        text = { Text("Partager") },
+                        onClick = {
+                            menuOpen = false
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, activeTab.url)
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Partager le lien"))
+                        },
+                    )
+                }
             }
         }
     }
@@ -269,6 +355,16 @@ private fun TabSwitcherScreen(viewModel: BrowserViewModel) {
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val favicon = tab.favicon
+                if (favicon != null) {
+                    Image(
+                        bitmap = favicon,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp).padding(end = 10.dp),
+                    )
+                } else {
+                    Box(modifier = Modifier.size(20.dp).padding(end = 10.dp))
+                }
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         (if (tab.isPrivate) "🕶 " else "") + tab.title,
@@ -389,7 +485,7 @@ private fun OverlayHeader(title: String, onClose: () -> Unit, trailing: @Composa
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onClose) {
-            Icon(Icons.Filled.ArrowBack, contentDescription = "Retour", tint = ChromeText)
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour", tint = ChromeText)
         }
         Text(title, color = ChromeText, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
         trailing?.invoke()
