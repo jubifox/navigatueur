@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Historique — Navigatueur</title>
+<link rel="stylesheet" href="page.css" />
+</head>
+<body>
+<main>
+  <h1>Historique</h1>
+  <div class="toolbar-row">
+    <input id="search" type="text" placeholder="Rechercher dans l'historique…" spellcheck="false" />
+    <button class="btn ghost" id="clear">Tout effacer</button>
+  </div>
+  <div id="list"></div>
+</main>
+
+<script>
+const { invoke } = window.__TAURI__.core;
+let entries = [];
+
+const $ = (id) => document.getElementById(id);
+
+/** Groups entries by calendar day, newest day first, preserving order within. */
+function byDay(items) {
+  const days = new Map();
+  for (const entry of items) {
+    const key = (entry.VisitedAt || "").slice(0, 10);
+    if (!days.has(key)) days.set(key, []);
+    days.get(key).push(entry);
+  }
+  return days;
+}
+
+function dayLabel(iso) {
+  if (!iso) return "Date inconnue";
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  if (iso === today) return "Aujourd'hui";
+  if (iso === yesterday) return "Hier";
+  return new Date(iso + "T00:00:00Z").toLocaleDateString("fr-FR",
+    { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function render() {
+  const needle = $("search").value.trim().toLowerCase();
+  const filtered = needle
+    ? entries.filter((e) =>
+        (e.Title || "").toLowerCase().includes(needle) ||
+        (e.Url || "").toLowerCase().includes(needle))
+    : entries;
+
+  const list = $("list");
+  list.replaceChildren();
+
+  if (filtered.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = needle ? "Aucun résultat." : "L'historique est vide.";
+    list.appendChild(empty);
+    return;
+  }
+
+  for (const [day, items] of byDay(filtered)) {
+    const section = document.createElement("div");
+    section.className = "day";
+
+    const heading = document.createElement("h3");
+    heading.textContent = dayLabel(day);
+    section.appendChild(heading);
+
+    for (const entry of items) {
+      const row = document.createElement("a");
+      row.className = "entry";
+      row.href = entry.Url;
+
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = (entry.VisitedAt || "").slice(11, 16);
+      row.appendChild(time);
+
+      const title = document.createElement("span");
+      title.className = "title";
+      title.textContent = entry.Title || entry.Url;
+      row.appendChild(title);
+
+      const url = document.createElement("span");
+      url.className = "url";
+      url.textContent = entry.Url;
+      row.appendChild(url);
+
+      section.appendChild(row);
+    }
+    list.appendChild(section);
+  }
+}
+
+$("search").addEventListener("input", render);
+
+$("clear").addEventListener("click", async () => {
+  await invoke("clear_history");
+  entries = [];
+  render();
+});
+
+(async function init() {
+  const settings = await invoke("get_settings");
+  document.documentElement.dataset.theme = (settings.ThemeMode || "Dark").toLowerCase();
+  document.documentElement.style.setProperty("--accent", settings.AccentColorHex);
+
+  entries = await invoke("get_history");
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Paramètres — Navigatueur</title>
+<link rel="stylesheet" href="page.css" />
+</head>
+<body>
+<main>
+  <h1>Paramètres</h1>
+
+  <section>
+    <h2>Apparence</h2>
+    <div class="row">
+      <span class="label">Thème</span>
+      <div class="choices" id="theme"></div>
+    </div>
+    <div class="row">
+      <span class="label">Couleur d'accent</span>
+      <div class="choices" id="accents"></div>
+    </div>
+    <div class="row">
+      <span class="label">Teinte libre</span>
+      <input type="range" id="hue" min="0" max="359" />
+      <span class="preview" id="huepreview"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Barre d'adresse</h2>
+    <div class="row">
+      <span class="label">Position</span>
+      <div class="choices" id="addrpos"></div>
+    </div>
+    <div class="row">
+      <span class="label">Taille</span>
+      <div class="choices" id="addrsize"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Moteur de recherche</h2>
+    <div class="choices" id="engines"></div>
+  </section>
+
+  <section>
+    <h2>Protection</h2>
+    <label class="check"><input type="checkbox" id="adblock" /> Bloquer les publicités et traqueurs</label>
+    <label class="check"><input type="checkbox" id="phishing" /> Protection contre l'hameçonnage</label>
+    <label class="check"><input type="checkbox" id="trail" /> Traînée de curseur</label>
+  </section>
+
+  <section>
+    <h2>Arrière-plans</h2>
+    <div class="row">
+      <span class="label">Nouvel onglet</span>
+      <button class="btn" id="pick-newtab">Choisir une image…</button>
+      <button class="btn ghost" id="clear-newtab">Réinitialiser</button>
+      <span class="hint" id="newtab-path"></span>
+    </div>
+    <div class="row">
+      <span class="label">Interface</span>
+      <button class="btn" id="pick-chrome">Choisir une image…</button>
+      <button class="btn ghost" id="clear-chrome">Réinitialiser</button>
+      <span class="hint" id="chrome-path"></span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Mise à jour</h2>
+    <p class="hint" id="version"></p>
+    <button class="btn" id="checkupdate">Vérifier maintenant</button>
+    <p class="hint" id="updatestatus"></p>
+  </section>
+</main>
+
+<script>
+const { invoke } = window.__TAURI__.core;
+const { open } = window.__TAURI__.dialog;
+let settings = null;
+
+const $ = (id) => document.getElementById(id);
+const set = (key, value) => invoke("set_setting", { key, value });
+
+/** Renders a row of mutually exclusive choice buttons. */
+function choices(container, items, current, onPick) {
+  container.replaceChildren();
+  for (const [value, label, swatch] of items) {
+    const button = document.createElement("button");
+    button.className = "choice" + (value === current ? " on" : "");
+    if (swatch) {
+      button.classList.add("swatch");
+      button.style.background = swatch;
+      button.title = label;
+    } else {
+      button.textContent = label;
+    }
+    button.addEventListener("click", async () => { await onPick(value); await reload(); });
+    container.appendChild(button);
+  }
+}
+
+/** Fixed saturation/value so every hue reads as vividly accent-coloured
+    rather than pastel or muddy — same constants as SettingsWindow. */
+function hsvToHex(hue, s = 0.65, v = 0.85) {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const m = v - c;
+  const [r, g, b] =
+      hue < 60  ? [c, x, 0] : hue < 120 ? [x, c, 0] : hue < 180 ? [0, c, x]
+    : hue < 240 ? [0, x, c] : hue < 300 ? [x, 0, c] : [c, 0, x];
+  const to = (n) => Math.round((n + m) * 255).toString(16).padStart(2, "0").toUpperCase();
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+/** Reverse of hsvToHex, just enough to position the slider on open. */
+function hexToHue(hex) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
+  if (!m) return 220;
+  const [r, g, b] = m.slice(1).map((v) => parseInt(v, 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  const h = max === r ? 60 * (((g - b) / d) % 6)
+          : max === g ? 60 * ((b - r) / d + 2)
+          :             60 * ((r - g) / d + 4);
+  return h < 0 ? h + 360 : h;
+}
+
+async function reload() {
+  settings = await invoke("get_settings");
+  const engines = await invoke("get_search_engines");
+  const colors = await invoke("get_group_colors");
+
+  choices($("theme"), [["Dark", "Sombre"], ["Light", "Clair"]],
+    settings.ThemeMode, (v) => set("themeMode", v));
+
+  choices($("accents"), colors.map(([name, hex]) => [hex, name, hex]),
+    settings.AccentColorHex, (v) => set("accentColorHex", v));
+
+  choices($("addrpos"), [["Top", "Haut"], ["Bottom", "Bas"], ["Sidebar", "Latérale"]],
+    settings.AddressBarPosition, (v) => set("addressBarPosition", v));
+
+  choices($("addrsize"), [["Small", "Petite"], ["Normal", "Normale"], ["Large", "Grande"]],
+    settings.AddressBarSize, (v) => set("addressBarSize", v));
+
+  choices($("engines"), engines.map((e) => [e.id, e.displayName]),
+    settings.SearchEngine, (v) => set("searchEngine", v));
+
+  $("adblock").checked = settings.IsAdBlockEnabled;
+  $("phishing").checked = settings.IsPhishingProtectionEnabled;
+  $("trail").checked = settings.IsCursorTrailEnabled;
+
+  $("hue").value = Math.round(hexToHue(settings.AccentColorHex));
+  $("huepreview").style.background = settings.AccentColorHex;
+
+  $("newtab-path").textContent = settings.NewTabBackgroundImagePath || "aucune";
+  $("chrome-path").textContent = settings.ChromeBackgroundImagePath || "aucune";
+
+  document.documentElement.dataset.theme = (settings.ThemeMode || "Dark").toLowerCase();
+  document.documentElement.style.setProperty("--accent", settings.AccentColorHex);
+}
+
+$("hue").addEventListener("input", (e) => {
+  // Live preview while dragging; the setting itself is written on release so
+  // the slider does not spam a file write per pixel.
+  $("huepreview").style.background = hsvToHex(Number(e.target.value));
+});
+$("hue").addEventListener("change", async (e) => {
+  await set("accentColorHex", hsvToHex(Number(e.target.value)));
+  await reload();
+});
+
+for (const [id, key] of [["adblock", "isAdBlockEnabled"],
+                         ["phishing", "isPhishingProtectionEnabled"],
+                         ["trail", "isCursorTrailEnabled"]]) {
+  $(id).addEventListener("change", (e) => set(key, e.target.checked));
+}
+
+for (const which of ["newtab", "chrome"]) {
+  $(`pick-${which}`).addEventListener("click", async () => {
+    const path = await open({
+      multiple: false,
+      filters: [{ name: "Images", extensions: ["jpg", "jpeg", "png", "bmp", "webp"] }],
+    });
+    if (!path) return;
+    await invoke("set_background_image", { which, sourcePath: path });
+    await reload();
+  });
+  $(`clear-${which}`).addEventListener("click", async () => {
+    await set(which === "newtab" ? "newTabBackgroundImagePath" : "chromeBackgroundImagePath", null);
+    await reload();
+  });
+}
+
+$("checkupdate").addEventListener("click", async () => {
+  $("updatestatus").textContent = "Vérification en cours…";
+  const status = await invoke("check_update");
+  if (status.error) {
+    $("updatestatus").textContent = `Vérification impossible : ${status.error}`;
+  } else if (status.isUpdateAvailable) {
+    $("updatestatus").innerHTML =
+      `Version ${status.latestVersion} disponible — ` +
+      `<a href="${status.downloadUrl}">télécharger l'AppImage</a>. ` +
+      `Remplacez le fichier existant puis relancez.`;
+  } else {
+    $("updatestatus").textContent = "Navigatueur est à jour.";
+  }
+});
+
+(async function init() {
+  await reload();
+  const status = await invoke("check_update");
+  $("version").textContent = `Version actuelle : ${status.currentVersion}`;
+})();
+</script>
+</body>
+</html>

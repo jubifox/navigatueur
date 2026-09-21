@@ -1,9 +1,9 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Chrome UI needs to drive tabs; tab webviews need nothing beyond navigation.",
+  "description": "IPC for the chrome and for the app's own pages (settings, history, new tab, warning), which load inside tab webviews.",
   "windows": ["main"],
-  "webviews": ["chrome"],
+  "webviews": ["chrome", "tab-*"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
