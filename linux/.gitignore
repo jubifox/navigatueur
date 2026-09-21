@@ -1,0 +1,3 @@
+# Build output — the AppImage is a release artefact, not a source file.
+src-tauri/target/
+src-tauri/gen/schemas/
