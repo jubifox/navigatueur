@@ -43,14 +43,25 @@ public partial class TabManagerService : ObservableObject
     /// <summary>Which WebView2 profile this manager's tabs load into — a separate, throwaway one for private browsing.</summary>
     public WebView2EnvironmentService Environment { get; }
 
-    /// <summary>True for the private-browsing window's manager: disables writing anything (saved groups, session state) to the shared settings.json.</summary>
+    /// <summary>True for the private-browsing window's manager: disables writing anything (saved groups, session state) to the shared settings.json, and also disables history recording/extension attachment.</summary>
     public bool IsPrivate { get; }
 
-    public TabManagerService(AppSettings settings, WebView2EnvironmentService? environment = null, bool isPrivate = false)
+    /// <summary>
+    /// False for a secondary "Nouvelle fenêtre" window's manager: unlike
+    /// IsPrivate, history/extensions still work normally there (it's not a
+    /// private session) — this only stops it from writing its own saved-group
+    /// changes to the shared settings.json, which belongs to the primary
+    /// window. Session (open tabs) persistence is a separate concern handled
+    /// entirely by MainWindow, not here — this manager never writes it either way.
+    /// </summary>
+    public bool PersistsToSettings { get; }
+
+    public TabManagerService(AppSettings settings, WebView2EnvironmentService? environment = null, bool isPrivate = false, bool persistsToSettings = true)
     {
         _settings = settings;
         Environment = environment ?? AppServices.WebView2Environment;
         IsPrivate = isPrivate;
+        PersistsToSettings = persistsToSettings;
 
         Tabs.CollectionChanged += (_, _) => RebuildTabStripItems();
         Groups.CollectionChanged += (_, _) => RebuildTabStripItems();
@@ -437,9 +448,9 @@ public partial class TabManagerService : ObservableObject
 
     private void PersistSavedGroups()
     {
-        if (IsPrivate)
+        if (IsPrivate || !PersistsToSettings)
         {
-            return; // Never let a private window's throwaway AppSettings overwrite the real settings.json.
+            return; // Never let a private (or secondary-window) throwaway AppSettings overwrite the real settings.json.
         }
 
         _settings.SavedGroups = SavedGroups.ToList();

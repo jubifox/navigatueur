@@ -10,6 +10,16 @@ public partial class App : Application
     {
         base.OnStartup(e);
         LoadAppCursor();
+
+        // Not App.xaml's StartupUri anymore: that activates MainWindow via
+        // XAML/reflection, which requires a genuine zero-argument CLR
+        // constructor — MainWindow's constructor now takes optional
+        // parameters (tabManager/isPrimary, used by "Nouvelle fenêtre" to
+        // open a second independent window), which is a compile-time C#
+        // convenience, not a real parameterless overload, so the reflection
+        // lookup found nothing and crashed on every launch. Calling the
+        // constructor directly from code resolves the defaults normally.
+        new MainWindow().Show();
     }
 
     /// <summary>
