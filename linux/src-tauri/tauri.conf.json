@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Navigatueur",
+  "version": "0.15.0",
+  "identifier": "com.navigatueur.linux",
+  "build": {
+    "frontendDist": "../ui"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        "default"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "appimage",
+      "deb"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/48x48.png",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../../src/Navigatueur.App/Resources/AdBlock/blocklist-domains.txt": "resources/blocklist-domains.txt",
+      "../../src/Navigatueur.App/Resources/Phishing/phishing-domains.txt": "resources/phishing-domains.txt"
+    },
+    "category": "Utility",
+    "shortDescription": "Navigateur web Navigatueur",
+    "longDescription": "Navigatueur — navigateur web léger avec blocage de publicités et protection anti-hameçonnage.",
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
+  }
+}

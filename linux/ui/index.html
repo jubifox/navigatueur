@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Navigatueur</title>
+<style>
+  /* Palette lifted from Resources/Theme.xaml so both builds look the same. */
+  :root {
+    --chrome-bg: #1E1F22;
+    --chrome-border: #3A3B3F;
+    --chrome-text: #E4E4E7;
+    --surface: #2B2D31;
+    --accent: #4C8DFF;
+  }
+
+  :root[data-theme="light"] {
+    --chrome-bg: #F3F3F5;
+    --chrome-border: #D0D0D6;
+    --chrome-text: #1E1F22;
+    --surface: #FFFFFF;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+    overflow: hidden;
+    background: var(--chrome-bg);
+    color: var(--chrome-text);
+    font-family: "Inter", "Segoe UI", "Cantarell", system-ui, sans-serif;
+    font-size: 13px;
+    user-select: none;
+  }
+
+  /* ---- tab strip ---- */
+  #tabstrip {
+    display: flex;
+    align-items: stretch;
+    height: 40px;
+    padding: 6px 6px 0 6px;
+    gap: 4px;
+    border-bottom: 1px solid var(--chrome-border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #tabstrip::-webkit-scrollbar { display: none; }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+    max-width: 220px;
+    padding: 0 8px 0 12px;
+    border-radius: 8px 8px 0 0;
+    background: transparent;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .tab:hover { background: color-mix(in srgb, var(--surface) 60%, transparent); }
+  .tab.active { background: var(--surface); }
+
+  .tab .title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tab .close, #newtab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+  .tab .close:hover, #newtab:hover { background: var(--chrome-border); opacity: 1; }
+
+  #newtab { align-self: center; flex: none; width: 28px; height: 28px; font-size: 18px; }
+
+  /* ---- toolbar ---- */
+  #toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 44px;
+    padding: 0 10px;
+  }
+
+  .nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--chrome-text);
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .nav-btn:hover:not(:disabled) { background: var(--chrome-border); }
+  .nav-btn:disabled { opacity: 0.35; cursor: default; }
+
+  #address {
+    flex: 1;
+    min-width: 0;
+    height: 30px;
+    padding: 0 14px;
+    border: 1px solid var(--chrome-border);
+    border-radius: 15px;
+    background: var(--surface);
+    color: var(--chrome-text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    user-select: text;
+  }
+  #address:focus { border-color: var(--accent); }
+
+  /* Address-bar scale — mirrors AppSettings.AddressBarSize. */
+  :root[data-addrsize="Small"]  #address { height: 26px; font-size: 12px; }
+  :root[data-addrsize="Large"]  #address { height: 34px; font-size: 15px; }
+
+  #shield {
+    flex: none;
+    padding: 0 8px;
+    font-size: 11px;
+    opacity: 0.55;
+  }
+</style>
+</head>
+<body>
+  <div id="tabstrip">
+    <button id="newtab" title="Nouvel onglet">+</button>
+  </div>
+
+  <div id="toolbar">
+    <button class="nav-btn" id="back"    title="Précédent">&#8249;</button>
+    <button class="nav-btn" id="forward" title="Suivant">&#8250;</button>
+    <button class="nav-btn" id="reload"  title="Actualiser">&#10227;</button>
+    <button class="nav-btn" id="home"    title="Accueil">&#8962;</button>
+    <input id="address" type="text" placeholder="Rechercher ou saisir une adresse" spellcheck="false" />
+    <span id="shield" title="Protection active"></span>
+  </div>
+
+<script>
+const { invoke } = window.__TAURI__.core;
+const { listen }  = window.__TAURI__.event;
+
+const tabs = new Map();      // label -> { url, title }
+let activeLabel = null;
+let settings = null;
+
+const el = {
+  strip:   document.getElementById("tabstrip"),
+  newtab:  document.getElementById("newtab"),
+  address: document.getElementById("address"),
+  back:    document.getElementById("back"),
+  forward: document.getElementById("forward"),
+  reload:  document.getElementById("reload"),
+  home:    document.getElementById("home"),
+  shield:  document.getElementById("shield"),
+};
+
+function renderTabs() {
+  // Rebuild the strip but keep the "+" button, which lives outside the loop.
+  [...el.strip.querySelectorAll(".tab")].forEach((n) => n.remove());
+
+  for (const [label, tab] of tabs) {
+    const node = document.createElement("div");
+    node.className = "tab" + (label === activeLabel ? " active" : "");
+    node.title = tab.url || "Nouvel onglet";
+
+    const title = document.createElement("span");
+    title.className = "title";
+    title.textContent = tab.title || prettyTitle(tab.url);
+    node.appendChild(title);
+
+    const close = document.createElement("button");
+    close.className = "close";
+    close.textContent = "×";
+    close.addEventListener("click", (e) => { e.stopPropagation(); closeTab(label); });
+    node.appendChild(close);
+
+    node.addEventListener("click", () => activateTab(label));
+    el.strip.insertBefore(node, el.newtab);
+  }
+}
+
+function prettyTitle(url) {
+  if (!url) return "Nouvel onglet";
+  try { return new URL(url).host || url; } catch { return url; }
+}
+
+/** The internal new-tab page is an implementation detail; show an empty bar. */
+function displayUrl(url) {
+  if (!url || url.includes("newtab.html")) return "";
+  return url;
+}
+
+async function newTab(url) {
+  const handle = await invoke("tab_create", { url: url || null });
+  tabs.set(handle.label, { url: handle.url, title: "" });
+  activeLabel = handle.label;
+  await invoke("tab_activate", { label: handle.label });
+  renderTabs();
+  el.address.value = displayUrl(handle.url);
+  el.address.focus();
+}
+
+async function activateTab(label) {
+  activeLabel = label;
+  await invoke("tab_activate", { label });
+  el.address.value = displayUrl(tabs.get(label)?.url);
+  renderTabs();
+}
+
+async function closeTab(label) {
+  await invoke("tab_close", { label });
+  tabs.delete(label);
+
+  if (activeLabel === label) {
+    const next = [...tabs.keys()].pop();
+    if (next) {
+      await activateTab(next);
+    } else {
+      activeLabel = null;
+      await newTab();
+    }
+  }
+  renderTabs();
+}
+
+el.newtab.addEventListener("click", () => newTab());
+el.reload .addEventListener("click", () => activeLabel && invoke("tab_reload",     { label: activeLabel }));
+el.back   .addEventListener("click", () => activeLabel && invoke("tab_history_go", { label: activeLabel, delta: -1 }));
+el.forward.addEventListener("click", () => activeLabel && invoke("tab_history_go", { label: activeLabel, delta:  1 }));
+el.home   .addEventListener("click", () => {
+  if (activeLabel) invoke("tab_navigate", { label: activeLabel, input: settings?.HomePageUrl ?? "" });
+});
+
+el.address.addEventListener("keydown", async (e) => {
+  if (e.key !== "Enter") return;
+  if (!activeLabel) await newTab();
+  const url = await invoke("tab_navigate", { label: activeLabel, input: el.address.value });
+  if (url) {
+    tabs.get(activeLabel).url = url;
+    el.address.value = displayUrl(url);
+    renderTabs();
+  }
+});
+
+el.address.addEventListener("focus", () => el.address.select());
+
+// Ctrl+T / Ctrl+W / Ctrl+L, the shortcuts the Windows build also binds.
+window.addEventListener("keydown", (e) => {
+  if (!e.ctrlKey) return;
+  if (e.key === "t") { e.preventDefault(); newTab(); }
+  if (e.key === "w") { e.preventDefault(); if (activeLabel) closeTab(activeLabel); }
+  if (e.key === "l") { e.preventDefault(); el.address.focus(); }
+});
+
+listen("tab-navigated", ({ payload }) => {
+  const tab = tabs.get(payload.tab);
+  if (!tab) return;
+  tab.url = payload.url;
+  tab.title = "";
+  if (payload.tab === activeLabel) el.address.value = displayUrl(payload.url);
+  renderTabs();
+});
+
+listen("navigation-blocked", ({ payload }) => {
+  // The Rust side refused the navigation; send the tab to the warning page
+  // with the blocked target so it can be shown and optionally overridden.
+  const page = `warning.html?url=${encodeURIComponent(payload.url)}&reason=${payload.reason}`;
+  invoke("tab_navigate", { label: payload.tab, input: page });
+});
+
+(async function init() {
+  settings = await invoke("get_settings");
+  document.documentElement.dataset.theme    = (settings.ThemeMode || "Dark").toLowerCase();
+  document.documentElement.dataset.addrsize = settings.AddressBarSize || "Normal";
+  document.documentElement.style.setProperty("--accent", settings.AccentColorHex || "#4C8DFF");
+
+  const guards = [];
+  if (settings.IsAdBlockEnabled)            guards.push("pubs");
+  if (settings.IsPhishingProtectionEnabled) guards.push("hameçonnage");
+  el.shield.textContent = guards.length ? `⛨ ${guards.join(" · ")}` : "";
+
+  await newTab();
+})();
+</script>
+</body>
+</html>

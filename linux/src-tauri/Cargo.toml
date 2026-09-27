@@ -1,0 +1,36 @@
+[package]
+name = "navigatueur"
+version = "0.15.0"
+description = "Navigatueur — version Linux"
+authors = ["jubifox"]
+edition = "2021"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# "unstable" unlocks the multi-webview API (window.add_child / Webview::builder),
+# which is what lets one window host the chrome plus one webview per tab —
+# the Linux counterpart of the WebView2 + overlay-window arrangement on Windows.
+# "tray-icon" is deliberately absent: the tray icon is not ported yet, and
+# enabling it makes the bundler require libappindicator at build time.
+tauri = { version = "2", features = ["unstable"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", features = ["tls"] }
+dirs = "5"
+url = "2"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

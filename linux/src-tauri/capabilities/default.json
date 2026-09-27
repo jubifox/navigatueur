@@ -1,0 +1,15 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Chrome UI needs to drive tabs; tab webviews need nothing beyond navigation.",
+  "windows": ["main"],
+  "webviews": ["chrome"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:webview:allow-create-webview",
+    "core:event:default",
+    "dialog:default",
+    "opener:default"
+  ]
+}
