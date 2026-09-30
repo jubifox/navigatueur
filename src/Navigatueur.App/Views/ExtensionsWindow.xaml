@@ -4,6 +4,9 @@
         Title="Extensions" Width="460" Height="640"
         Background="{DynamicResource ChromeBackgroundBrush}"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
     <DockPanel Margin="16">
         <TextBlock DockPanel.Dock="Top" Text="Extensions" FontWeight="Bold" FontSize="16"
                    Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,4" />
@@ -66,6 +69,13 @@
                                 <DockPanel>
                                     <Button DockPanel.Dock="Right" Content="Supprimer" FontSize="11" Padding="8,4"
                                             Command="{Binding RemoveCommand}" />
+                                    <!-- Only extensions with a manifest-declared popup (action/browser_action
+                                         "default_popup" — settings, per-site toggles, stats...) get this button.
+                                         WebView2 has no toolbar of its own to click that popup from, so this is
+                                         the only way to reach it at all. -->
+                                    <Button DockPanel.Dock="Right" Content="Ouvrir" FontSize="11" Padding="8,4" Margin="0,0,6,0"
+                                            Command="{Binding OpenPopupCommand}"
+                                            Visibility="{Binding HasPopup, Converter={StaticResource BoolToVis}}" />
                                     <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />

@@ -1,11 +1,14 @@
 using System.Collections.ObjectModel;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Web.WebView2.Core;
+using Navigatueur.App.Views;
 
 namespace Navigatueur.App.Services;
 
@@ -56,6 +59,15 @@ public partial class ExtensionService : ObservableObject
     private static readonly string ExtensionsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Navigatueur", "Extensions");
 
+    /// <summary>
+    /// Maps an installed extension's WebView2-assigned Id to the unpacked
+    /// folder it was installed from — CoreWebView2BrowserExtension itself
+    /// doesn't expose that path back, so it has to be recorded at install
+    /// time (see AddExtensionAsync) to later read manifest.json and find the
+    /// extension's popup (see TryReadPopupPath / RefreshAsync).
+    /// </summary>
+    private static readonly string ManifestPathsFile = Path.Combine(ExtensionsDirectory, "manifest-paths.json");
+
     public ObservableCollection<InstalledExtension> Extensions { get; } = new();
 
     public ObservableCollection<RecommendedExtensionViewModel> RecommendedItems { get; } = new(
@@ -65,10 +77,71 @@ public partial class ExtensionService : ObservableObject
     private string? lastError;
 
     private CoreWebView2Profile? _profile;
+    private readonly Dictionary<string, string> _manifestPaths;
 
     public ExtensionService()
     {
         Extensions.CollectionChanged += (_, _) => RefreshRecommendedInstalledState();
+        _manifestPaths = LoadManifestPaths();
+    }
+
+    private static Dictionary<string, string> LoadManifestPaths()
+    {
+        try
+        {
+            return File.Exists(ManifestPathsFile)
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(ManifestPathsFile)) ?? new()
+                : new();
+        }
+        catch (Exception ex) when (ex is IOException or JsonException)
+        {
+            return new();
+        }
+    }
+
+    private void SaveManifestPaths()
+    {
+        try
+        {
+            Directory.CreateDirectory(ExtensionsDirectory);
+            File.WriteAllText(ManifestPathsFile, JsonSerializer.Serialize(_manifestPaths));
+        }
+        catch (IOException)
+        {
+            // Non-fatal: worst case, the popup button just won't show up after a restart.
+        }
+    }
+
+    /// <summary>Reads manifest.json's declared popup page (MV3 "action" or MV2 "browser_action"), if any — extensions without a toolbar popup (most ad-blockers' background-only logic) just won't offer the "Ouvrir" button.</summary>
+    private static bool TryReadPopupPath(string folder, out string? popupPath)
+    {
+        popupPath = null;
+        var manifestFile = Path.Combine(folder, "manifest.json");
+        if (!File.Exists(manifestFile))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(manifestFile));
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("action", out var action) && action.TryGetProperty("default_popup", out var mv3Popup))
+            {
+                popupPath = mv3Popup.GetString();
+            }
+            else if (root.TryGetProperty("browser_action", out var browserAction) && browserAction.TryGetProperty("default_popup", out var mv2Popup))
+            {
+                popupPath = mv2Popup.GetString();
+            }
+
+            return !string.IsNullOrEmpty(popupPath);
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private void RefreshRecommendedInstalledState()
@@ -123,7 +196,13 @@ public partial class ExtensionService : ObservableObject
             Extensions.Clear();
             foreach (var extension in list)
             {
-                Extensions.Add(new InstalledExtension(extension, this));
+                string? popupUrl = null;
+                if (_manifestPaths.TryGetValue(extension.Id, out var folder) && TryReadPopupPath(folder, out var popupPath))
+                {
+                    popupUrl = $"chrome-extension://{extension.Id}/{popupPath!.TrimStart('/')}";
+                }
+
+                Extensions.Add(new InstalledExtension(extension, this, popupUrl));
             }
 
             LastError = null;
@@ -145,7 +224,9 @@ public partial class ExtensionService : ObservableObject
 
         try
         {
-            await profile.AddBrowserExtensionAsync(unpackedFolderPath);
+            var extension = await profile.AddBrowserExtensionAsync(unpackedFolderPath);
+            _manifestPaths[extension.Id] = unpackedFolderPath;
+            SaveManifestPaths();
             await RefreshAsync();
             return true;
         }
@@ -162,6 +243,11 @@ public partial class ExtensionService : ObservableObject
         {
             await extension.Extension.RemoveAsync();
             Extensions.Remove(extension);
+
+            if (_manifestPaths.Remove(extension.Id))
+            {
+                SaveManifestPaths();
+            }
         }
         catch (Exception ex)
         {
@@ -248,13 +334,14 @@ public partial class InstalledExtension : ObservableObject
 {
     private readonly ExtensionService _owner;
 
-    public InstalledExtension(CoreWebView2BrowserExtension extension, ExtensionService owner)
+    public InstalledExtension(CoreWebView2BrowserExtension extension, ExtensionService owner, string? popupUrl)
     {
         Extension = extension;
         _owner = owner;
         Id = extension.Id;
         Name = extension.Name;
         isEnabled = extension.IsEnabled;
+        PopupUrl = popupUrl;
     }
 
     internal CoreWebView2BrowserExtension Extension { get; }
@@ -263,6 +350,11 @@ public partial class InstalledExtension : ObservableObject
 
     public string Name { get; }
 
+    /// <summary>chrome-extension://{id}/{popup page}, or null for an extension whose manifest declares no toolbar popup (or one Navigatueur doesn't have the unpacked folder path for — see ExtensionService's manifest-paths.json). Drives the "Ouvrir" button's visibility.</summary>
+    public string? PopupUrl { get; }
+
+    public bool HasPopup => PopupUrl is not null;
+
     [ObservableProperty]
     private bool isEnabled;
 
@@ -270,6 +362,25 @@ public partial class InstalledExtension : ObservableObject
 
     [RelayCommand]
     private async Task Remove() => await _owner.RemoveAsync(this);
+
+    /// <summary>
+    /// Opens the extension's own popup UI (settings, per-site toggles, stats —
+    /// whatever it normally shows when you click its toolbar icon in a real
+    /// browser) in a small standalone window. WebView2 has no extension
+    /// toolbar of its own to click, so this is the only way to reach that UI
+    /// at all for extensions that need it (uBlock Origin's dashboard/per-site
+    /// controls, Consent-O-Matic's settings, etc.).
+    /// </summary>
+    [RelayCommand]
+    private void OpenPopup()
+    {
+        if (PopupUrl is null)
+        {
+            return;
+        }
+
+        new ExtensionPopupWindow(Name, PopupUrl).Show();
+    }
 }
 
 /// <summary>Per-item install state (busy/installed) for a <see cref="RecommendedExtension"/> shown in the UI.</summary>
