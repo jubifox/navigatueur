@@ -144,6 +144,47 @@ public partial class ExtensionService : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Falls back to the predictable install folder a *recommended* extension
+    /// would have used (see InstallRecommendedAsync's safeName) when there's
+    /// no recorded entry for it — the id-&gt;folder map was only added in
+    /// v0.17.0, so anyone who installed uBlock Origin/Consent-O-Matic/etc.
+    /// before that update would otherwise never get an "Ouvrir" button no
+    /// matter how many times the list refreshes, since nothing ever wrote
+    /// their entry. Backfills the map on a hit so this only has to run once
+    /// per extension. A manually-added (non-recommended) extension installed
+    /// before v0.17.0 has no predictable folder to guess, so it's still stuck
+    /// without a popup button — there's no way to recover that path after the fact.
+    /// </summary>
+    private string? ResolveFolder(CoreWebView2BrowserExtension extension)
+    {
+        if (_manifestPaths.TryGetValue(extension.Id, out var folder))
+        {
+            return folder;
+        }
+
+        var match = Recommended.FirstOrDefault(r =>
+            extension.Name.Contains(r.Name, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+        {
+            return null;
+        }
+
+        var safeName = string.Concat(match.Name.Split(Path.GetInvalidFileNameChars()));
+        var extractDir = Path.Combine(ExtensionsDirectory, safeName);
+        // Some archives (e.g. Decentraleyes' GitHub "archive/refs/heads/master.zip")
+        // nest manifest.json inside a "{repo}-{branch}" subfolder rather than at the
+        // archive root — same lookup InstallRecommendedAsync itself uses.
+        if (!Directory.Exists(extractDir) || FindManifestDirectory(extractDir) is not { } guessedFolder)
+        {
+            return null;
+        }
+
+        _manifestPaths[extension.Id] = guessedFolder;
+        SaveManifestPaths();
+        return guessedFolder;
+    }
+
     private void RefreshRecommendedInstalledState()
     {
         foreach (var item in RecommendedItems)
@@ -197,7 +238,8 @@ public partial class ExtensionService : ObservableObject
             foreach (var extension in list)
             {
                 string? popupUrl = null;
-                if (_manifestPaths.TryGetValue(extension.Id, out var folder) && TryReadPopupPath(folder, out var popupPath))
+                var folder = ResolveFolder(extension);
+                if (folder is not null && TryReadPopupPath(folder, out var popupPath))
                 {
                     popupUrl = $"chrome-extension://{extension.Id}/{popupPath!.TrimStart('/')}";
                 }
