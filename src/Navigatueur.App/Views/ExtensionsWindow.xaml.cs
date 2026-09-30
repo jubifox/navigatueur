@@ -37,4 +37,24 @@ public partial class ExtensionsWindow : Window
             await AppServices.Extensions.AddExtensionAsync(dialog.FolderName);
         }
     }
+
+    /// <summary>
+    /// For an extension added before v0.17.0 started tracking install folders
+    /// (see InstalledExtension.NeedsFolderLocation) — asks once for its
+    /// unpacked folder again so "Ouvrir" can work from then on, without
+    /// removing/re-adding the extension itself.
+    /// </summary>
+    private async void OnLocateExtensionFolderClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not InstalledExtension extension)
+        {
+            return;
+        }
+
+        var dialog = new OpenFolderDialog { Title = $"Localiser le dossier de « {extension.Name} » (contenant manifest.json)" };
+        if (dialog.ShowDialog() == true)
+        {
+            await AppServices.Extensions.SetManifestFolderAsync(extension.Id, dialog.FolderName);
+        }
+    }
 }

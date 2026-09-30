@@ -244,7 +244,15 @@ public partial class ExtensionService : ObservableObject
                     popupUrl = $"chrome-extension://{extension.Id}/{popupPath!.TrimStart('/')}";
                 }
 
-                Extensions.Add(new InstalledExtension(extension, this, popupUrl));
+                // folder is only ever null for a manually-added (non-recommended)
+                // extension installed before v0.17.0 — WebView2 loads an unpacked
+                // extension by reference (it never copies it anywhere Navigatueur
+                // can discover afterwards), and the id->folder map that lets a
+                // later run re-find it only started being written in v0.17.0, so
+                // there is genuinely nothing to look up here for one added before
+                // that. NeedsFolderLocation lets the UI ask the user to point at
+                // it again once, without touching the extension itself.
+                Extensions.Add(new InstalledExtension(extension, this, popupUrl, needsFolderLocation: folder is null));
             }
 
             LastError = null;
@@ -253,6 +261,28 @@ public partial class ExtensionService : ObservableObject
         {
             LastError = ex.Message;
         }
+    }
+
+    /// <summary>
+    /// Records where an already-installed extension's unpacked folder lives,
+    /// for the "Localiser..." button (see InstalledExtension.NeedsFolderLocation)
+    /// — this only ever needs to run once per extension per machine, since the
+    /// result is persisted to manifest-paths.json. Doesn't touch the extension
+    /// itself (no remove/re-add), just supplies the lookup this app's own
+    /// popup-button feature needs.
+    /// </summary>
+    public async Task<bool> SetManifestFolderAsync(string extensionId, string folderPath)
+    {
+        if (!File.Exists(Path.Combine(folderPath, "manifest.json")))
+        {
+            LastError = "Ce dossier ne contient pas de manifest.json.";
+            return false;
+        }
+
+        _manifestPaths[extensionId] = folderPath;
+        SaveManifestPaths();
+        await RefreshAsync();
+        return true;
     }
 
     public async Task<bool> AddExtensionAsync(string unpackedFolderPath)
@@ -376,7 +406,7 @@ public partial class InstalledExtension : ObservableObject
 {
     private readonly ExtensionService _owner;
 
-    public InstalledExtension(CoreWebView2BrowserExtension extension, ExtensionService owner, string? popupUrl)
+    public InstalledExtension(CoreWebView2BrowserExtension extension, ExtensionService owner, string? popupUrl, bool needsFolderLocation)
     {
         Extension = extension;
         _owner = owner;
@@ -384,6 +414,7 @@ public partial class InstalledExtension : ObservableObject
         Name = extension.Name;
         isEnabled = extension.IsEnabled;
         PopupUrl = popupUrl;
+        NeedsFolderLocation = needsFolderLocation;
     }
 
     internal CoreWebView2BrowserExtension Extension { get; }
@@ -392,10 +423,21 @@ public partial class InstalledExtension : ObservableObject
 
     public string Name { get; }
 
-    /// <summary>chrome-extension://{id}/{popup page}, or null for an extension whose manifest declares no toolbar popup (or one Navigatueur doesn't have the unpacked folder path for — see ExtensionService's manifest-paths.json). Drives the "Ouvrir" button's visibility.</summary>
+    /// <summary>chrome-extension://{id}/{popup page}, or null for an extension whose manifest declares no toolbar popup, or whose folder isn't known (see NeedsFolderLocation). Drives the "Ouvrir" button's visibility.</summary>
     public string? PopupUrl { get; }
 
     public bool HasPopup => PopupUrl is not null;
+
+    /// <summary>
+    /// True when Navigatueur genuinely doesn't know which unpacked folder this
+    /// extension was loaded from, so it can't even check whether it declares a
+    /// popup — always false for anything installed via the "Installer" button
+    /// or "Ajouter une extension..." from v0.17.0 onward (both record it at
+    /// install time); only true for an extension added before that update.
+    /// Drives the "Localiser..." button, which just asks once for that folder
+    /// again rather than needing to remove/re-add the extension.
+    /// </summary>
+    public bool NeedsFolderLocation { get; }
 
     [ObservableProperty]
     private bool isEnabled;

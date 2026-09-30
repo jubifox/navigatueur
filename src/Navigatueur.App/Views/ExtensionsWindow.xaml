@@ -76,6 +76,12 @@
                                     <Button DockPanel.Dock="Right" Content="Ouvrir" FontSize="11" Padding="8,4" Margin="0,0,6,0"
                                             Command="{Binding OpenPopupCommand}"
                                             Visibility="{Binding HasPopup, Converter={StaticResource BoolToVis}}" />
+                                    <!-- Only for an extension added before v0.17.0 tracked where it came from —
+                                         asks the user to point at its unpacked folder once so "Ouvrir" can work
+                                         from then on, without touching the extension itself. -->
+                                    <Button DockPanel.Dock="Right" Content="Localiser..." FontSize="11" Padding="8,4" Margin="0,0,6,0"
+                                            Click="OnLocateExtensionFolderClick"
+                                            Visibility="{Binding NeedsFolderLocation, Converter={StaticResource BoolToVis}}" />
                                     <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IsEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" />
                                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource ChromeTextBrush}" VerticalAlignment="Center" />
