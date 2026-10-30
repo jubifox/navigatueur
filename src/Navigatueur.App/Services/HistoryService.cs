@@ -40,6 +40,32 @@ public partial class HistoryService : ObservableObject
         Save();
     }
 
+    /// <summary>Removes one visit (the history page's × button). Matched on URL and timestamp, so other visits to the same page stay.</summary>
+    public void Remove(string url, DateTimeOffset visitedAt)
+    {
+        var entry = Entries.FirstOrDefault(e => e.Url == url && Math.Abs((e.VisitedAt - visitedAt).TotalSeconds) < 1);
+        if (entry is not null)
+        {
+            Entries.Remove(entry);
+            Save();
+        }
+    }
+
+    /// <summary>Most recent first, optionally filtered on title or URL.</summary>
+    public IReadOnlyList<HistoryEntry> Search(string? query, int limit)
+    {
+        IEnumerable<HistoryEntry> results = Entries;
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            var needle = query.Trim();
+            results = results.Where(e =>
+                e.Url.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+                e.Title.Contains(needle, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return results.Take(limit).ToList();
+    }
+
     public void Clear()
     {
         Entries.Clear();

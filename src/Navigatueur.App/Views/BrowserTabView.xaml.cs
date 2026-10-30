@@ -1,36 +1,33 @@
 using System.ComponentModel;
 using System.IO;
-using System.Text.Json;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
-using Navigatueur.App.Animation;
 using Navigatueur.App.Services;
+using Navigatueur.App.Shell;
 using Navigatueur.App.ViewModels;
+using Navigatueur.Core;
 
 namespace Navigatueur.App.Views;
 
+/// <summary>
+/// Hosts one tab's WebView2. The engine is created lazily and torn down when
+/// the tab is suspended (TabManagerService decides), then recreated on resume.
+/// </summary>
 public partial class BrowserTabView : UserControl
 {
-    /// <summary>
-    /// Virtual host name mapped to <see cref="NewTabFolder"/>, so the custom
-    /// "new tab" home page (Resources/NewTab/index.html) is navigable as a
-    /// real https URL instead of loading Microsoft's Bing homepage directly.
-    /// </summary>
-    private const string NewTabHostName = "navigatueur.home";
-
     /// <summary>Virtual host mapped to <see cref="ThemeService.BackgroundsDirectory"/>, so a user-picked new-tab background image is reachable from the page as a real https URL.</summary>
     private const string UserBackgroundHostName = "navigatueur.userbg";
 
     /// <summary>Virtual host name for the phishing warning interstitial (Resources/Warning/index.html).</summary>
     private const string WarningHostName = "navigatueur.warning";
 
-    private static readonly string NewTabFolder =
-        Path.Combine(AppContext.BaseDirectory, "Resources", "NewTab");
+    /// <summary>Navigatueur's own pages (new tab, settings, history), served as https://navigatueur.home/… — see InternalPages.</summary>
+    private static readonly string PagesFolder =
+        Path.Combine(AppContext.BaseDirectory, "Resources", "Pages");
 
     private static readonly string WarningFolder =
         Path.Combine(AppContext.BaseDirectory, "Resources", "Warning");
@@ -38,7 +35,7 @@ public partial class BrowserTabView : UserControl
     private static readonly string CursorImagePath =
         Path.Combine(AppContext.BaseDirectory, "Resources", "Cursors", "cursor.png");
 
-    private static string? _cursorInjectionScript;
+    private static string? _cursorImageBase64;
 
     private WebView2? _webView;
     private BrowserTabViewModel? _subscribedViewModel;
@@ -95,6 +92,12 @@ public partial class BrowserTabView : UserControl
         await EnsureLoadedAsync();
     }
 
+    private async void OnRetryEngineClick(object sender, RoutedEventArgs e)
+    {
+        EngineErrorPanel.Visibility = Visibility.Collapsed;
+        await EnsureLoadedAsync();
+    }
+
     private async Task EnsureLoadedAsync()
     {
         if (_webView is not null || ViewModel is null)
@@ -116,6 +119,18 @@ public partial class BrowserTabView : UserControl
             // The tab was suspended again while WebView2 was still initializing.
             return;
         }
+        catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or COMException or FileNotFoundException or ArgumentException)
+        {
+            // No usable engine: say so in the tab instead of crashing the whole app.
+            ContentHost.Children.Remove(webView);
+            webView.Dispose();
+            _webView = null;
+            EngineErrorText.Text = ex is WebView2RuntimeNotFoundException
+                ? "Le moteur WebView2 est introuvable. Réinstallez Navigatueur (il embarque son moteur), ou installez « Microsoft Edge WebView2 Runtime » depuis le site de Microsoft."
+                : $"Détail : {ex.Message}";
+            EngineErrorPanel.Visibility = Visibility.Visible;
+            return;
+        }
 
         if (_webView != webView)
         {
@@ -123,180 +138,188 @@ public partial class BrowserTabView : UserControl
             return;
         }
 
+        var core = webView.CoreWebView2;
         if (!ViewModel.TabManager.IsPrivate)
         {
-            AppServices.Extensions.AttachProfile(webView.CoreWebView2.Profile);
+            AppServices.Extensions.AttachProfile(core.Profile);
         }
 
-        webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            NewTabHostName, NewTabFolder, CoreWebView2HostResourceAccessKind.Allow);
+        core.SetVirtualHostNameToFolderMapping(InternalPages.HostName, PagesFolder, CoreWebView2HostResourceAccessKind.Allow);
 
         Directory.CreateDirectory(ThemeService.BackgroundsDirectory);
-        webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            UserBackgroundHostName, ThemeService.BackgroundsDirectory, CoreWebView2HostResourceAccessKind.Allow);
+        core.SetVirtualHostNameToFolderMapping(UserBackgroundHostName, ThemeService.BackgroundsDirectory, CoreWebView2HostResourceAccessKind.Allow);
+        core.SetVirtualHostNameToFolderMapping(WarningHostName, WarningFolder, CoreWebView2HostResourceAccessKind.Allow);
 
-        webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-            WarningHostName, WarningFolder, CoreWebView2HostResourceAccessKind.Allow);
-
-        var theme = AppServices.Theme;
-        var backgroundFile = theme.NewTabBackgroundImagePath is { } backgroundPath ? Path.GetFileName(backgroundPath) : null;
-        await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(
-            BuildNewTabThemeScript(backgroundFile, theme.AccentColorHex, AppServices.SearchEngine.CurrentEngine.ActionUrl));
-
-        var cosmeticScript = AppServices.AdBlock.GetCosmeticInjectionScript();
-        if (!string.IsNullOrEmpty(cosmeticScript) && !ViewModel.IsAdBlockDisabled)
+        if (AppServices.CurrentSettings.IsAdBlockEnabled && !ViewModel.IsAdBlockDisabled &&
+            AppServices.AdBlock.GetCosmeticInjectionScript() is { Length: > 0 } cosmeticScript)
         {
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(cosmeticScript);
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(cosmeticScript);
         }
 
-        var cursorScript = GetCursorInjectionScript();
-        if (!string.IsNullOrEmpty(cursorScript))
-        {
-            await webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(cursorScript);
-        }
+        await core.AddScriptToExecuteOnDocumentCreatedAsync(BuildPageEnhancementScript());
 
-        webView.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
-        webView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
-        webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
-        webView.CoreWebView2.PermissionRequested += OnPermissionRequested;
-        webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
-        webView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+        core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+        core.WebResourceRequested += OnWebResourceRequested;
+        core.NewWindowRequested += OnNewWindowRequested;
+        core.PermissionRequested += OnPermissionRequested;
+        core.DownloadStarting += OnDownloadStarting;
+        core.WebMessageReceived += OnWebMessageReceived;
+        core.NavigationStarting += OnNavigationStarting;
 
-        ViewModel.AttachCoreWebView2(webView.CoreWebView2);
+        InternalPageBridge.StateInvalidated += OnInternalStateInvalidated;
+        AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
+
+        ViewModel.AttachCoreWebView2(core);
         ViewModel.AttachZoomHost(webView);
-        webView.CoreWebView2.Navigate(ViewModel.AddressBarText);
+        core.Navigate(ViewModel.AddressBarText);
     }
 
+    // ---------------------------------------------------------- page script
+
     /// <summary>
-    /// Applies the current new-tab background image and accent color to the
-    /// home page. Runs at document-created time (before the body exists), so
-    /// it defers its own DOM work to DOMContentLoaded.
+    /// Injected into every page: the app's cursor, plus the accent-colored
+    /// cursor trail drawn on a click-through canvas *inside* the page. The
+    /// trail used to be drawn by a separate transparent window over the page,
+    /// fed by one cross-process message per mouse move; drawing it in the page
+    /// itself needs neither, and the canvas only exists once the trail is on
+    /// and the mouse has moved.
     /// </summary>
-    private static string BuildNewTabThemeScript(string? backgroundFile, string accentHex, string searchActionUrl)
+    private static string BuildPageEnhancementScript()
     {
-        var backgroundJs = backgroundFile is null ? "null" : $"'{Uri.EscapeDataString(backgroundFile)}'";
-        return $$"""
-        (function() {
-          if (location.hostname !== 'navigatueur.home') return;
-          function apply() {
-            var bgFile = {{backgroundJs}};
-            var layer = document.getElementById('bgLayer');
-            if (layer && bgFile) {
-              layer.style.backgroundImage = "url('https://navigatueur.userbg/" + bgFile + "')";
-              layer.classList.add('has-image');
+        if (_cursorImageBase64 is null)
+        {
+            try
+            {
+                _cursorImageBase64 = Convert.ToBase64String(File.ReadAllBytes(CursorImagePath));
             }
-            document.documentElement.style.setProperty('--nv-accent', '{{accentHex}}');
-            var form = document.getElementById('searchForm');
-            if (form) form.action = '{{searchActionUrl}}';
-          }
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', apply);
-          } else {
-            apply();
-          }
-        })();
-        """;
-    }
-
-    /// <summary>
-    /// Builds a script that (1) overrides the page's cursor via CSS to match
-    /// the app's own custom cursor, and (2) forwards throttled mousemove
-    /// coordinates to the host via the WebView2 postMessage bridge, so
-    /// <see cref="OnWebMessageReceived"/> can draw the same cursor-trail
-    /// effect over actual page content — WPF never sees mouse moves there
-    /// directly since WebView2 hosts it in a separate native child window.
-    /// Cached after the first successful read since the artwork never changes at runtime.
-    /// </summary>
-    private static string GetCursorInjectionScript()
-    {
-        if (_cursorInjectionScript is not null)
-        {
-            return _cursorInjectionScript;
+            catch (IOException)
+            {
+                _cursorImageBase64 = string.Empty;
+            }
         }
 
-        string base64;
-        try
-        {
-            base64 = Convert.ToBase64String(File.ReadAllBytes(CursorImagePath));
-        }
-        catch (IOException)
-        {
-            _cursorInjectionScript = string.Empty;
-            return _cursorInjectionScript;
-        }
+        var cursorCss = _cursorImageBase64.Length == 0
+            ? string.Empty
+            : $"*, *::before, *::after {{ cursor: url(\"data:image/png;base64,{_cursorImageBase64}\") 2 2, auto !important; }}";
+        var enabled = AppServices.Theme.IsCursorTrailEnabled ? "true" : "false";
+        var accent = AppServices.Theme.AccentColorHex;
 
-        _cursorInjectionScript = $$"""
-            (function() {
-              var style = document.createElement('style');
-              style.textContent = '*, *::before, *::after { cursor: url("data:image/png;base64,{{base64}}") 2 2, auto !important; }';
-              document.documentElement.appendChild(style);
+        return $$"""
+            (function () {
+              if (window.__navigatueurEnhanced) return;
+              window.__navigatueurEnhanced = true;
 
-              var last = 0;
-              document.addEventListener('mousemove', function(e) {
-                var now = Date.now();
-                if (now - last < 20) return;
-                last = now;
-                if (window.chrome && window.chrome.webview) {
-                  window.chrome.webview.postMessage({ type: 'navigatueur-cursor-trail', x: e.clientX, y: e.clientY });
+              var cursorCss = {{System.Text.Json.JsonSerializer.Serialize(cursorCss)}};
+              if (cursorCss) {
+                var style = document.createElement('style');
+                style.textContent = cursorCss;
+                document.documentElement.appendChild(style);
+              }
+
+              var enabled = {{enabled}};
+              var accent = {{System.Text.Json.JsonSerializer.Serialize(accent)}};
+              var LIFE = 260, GAP = 120;
+              var canvas = null, ctx = null, points = [], frame = 0;
+
+              function resize() {
+                var ratio = window.devicePixelRatio || 1;
+                canvas.width = innerWidth * ratio;
+                canvas.height = innerHeight * ratio;
+                ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+              }
+
+              function ensureCanvas() {
+                if (canvas) return;
+                canvas = document.createElement('canvas');
+                canvas.setAttribute('aria-hidden', 'true');
+                canvas.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647';
+                document.documentElement.appendChild(canvas);
+                ctx = canvas.getContext('2d');
+                resize();
+                addEventListener('resize', resize, { passive: true });
+              }
+
+              function draw() {
+                var now = performance.now();
+                points = points.filter(function (p) { return now - p.t < LIFE; });
+                ctx.clearRect(0, 0, innerWidth, innerHeight);
+                ctx.lineCap = 'round';
+                ctx.lineWidth = 3.5;
+                ctx.strokeStyle = accent;
+                for (var i = 1; i < points.length; i++) {
+                  var a = points[i - 1], b = points[i];
+                  if (b.t - a.t > GAP) continue;
+                  var life = 1 - (now - b.t) / LIFE;
+                  ctx.globalAlpha = 0.7 * life * life;
+                  ctx.beginPath();
+                  ctx.moveTo(a.x, a.y);
+                  ctx.lineTo(b.x, b.y);
+                  ctx.stroke();
                 }
-              }, true);
+                frame = points.length ? requestAnimationFrame(draw) : 0;
+              }
+
+              addEventListener('mousemove', function (e) {
+                if (!enabled) return;
+                ensureCanvas();
+                points.push({ x: e.clientX, y: e.clientY, t: performance.now() });
+                if (!frame) frame = requestAnimationFrame(draw);
+              }, { capture: true, passive: true });
+
+              window.__navigatueurTrail = function (on, color) {
+                enabled = !!on;
+                if (color) accent = color;
+                if (!enabled && ctx) { points = []; ctx.clearRect(0, 0, innerWidth, innerHeight); }
+              };
             })();
             """;
-        return _cursorInjectionScript;
     }
 
-    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        try
-        {
-            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("type", out var typeProp) || typeProp.GetString() != "navigatueur-cursor-trail")
-            {
-                return;
-            }
-
-            if (AppServices.Theme.IsCursorTrailEnabled)
-            {
-                SpawnTrailPoint(root.GetProperty("x").GetDouble(), root.GetProperty("y").GetDouble());
-            }
-        }
-        catch (JsonException)
-        {
-            // Malformed/unexpected message — not worth surfacing for a cosmetic feature.
-        }
-    }
-
-    private CursorTrailTracker? _cursorTrailTracker;
-    private Canvas? _trailCanvas;
-
-    /// <summary>
-    /// clientX/clientY are in CSS/viewport pixels, which shrink relative to
-    /// the WebView2 control's actual on-screen size as ZoomFactor increases
-    /// (more zoom = fewer CSS pixels fit the same physical viewport) — so
-    /// they need scaling by the current zoom to land in the right spot.
-    /// Drawn onto the host window's WebViewOverlayWindow, not a same-window
-    /// Canvas here — this control lives in the same window as the WebView2
-    /// it's tracking, so anything drawn locally would be silently hidden
-    /// behind it (WPF's "airspace" limitation, see WebViewOverlayWindow's
-    /// doc comment). The overlay is already positioned to exactly cover this
-    /// control's on-screen area when it's the active tab, so the same local
-    /// point works unchanged in the overlay's own coordinate space.
-    /// </summary>
-    private void SpawnTrailPoint(double clientX, double clientY)
-    {
-        _trailCanvas ??= (Window.GetWindow(this) as IWebViewOverlayHost)?.WebViewTrailCanvas;
-        if (_trailCanvas is null)
+        if (e.PropertyName is not (nameof(ThemeService.IsCursorTrailEnabled) or nameof(ThemeService.AccentColorHex)) ||
+            _webView?.CoreWebView2 is not { } core)
         {
             return;
         }
 
-        var zoom = _webView?.ZoomFactor ?? 1.0;
-        var position = new Point(clientX * zoom, clientY * zoom);
-
-        _cursorTrailTracker ??= new CursorTrailTracker(_trailCanvas);
-        _cursorTrailTracker.OnMove(position);
+        var theme = AppServices.Theme;
+        var script = $"window.__navigatueurTrail && window.__navigatueurTrail({(theme.IsCursorTrailEnabled ? "true" : "false")}, {System.Text.Json.JsonSerializer.Serialize(theme.AccentColorHex)})";
+        _ = core.ExecuteScriptAsync(script);
     }
+
+    // ------------------------------------------------------ internal pages
+
+    private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        // Any site can postMessage to the host; only Navigatueur's own pages are listened to.
+        if (!InternalPages.IsInternal(e.Source) || _webView?.CoreWebView2 is not { } core)
+        {
+            return;
+        }
+
+        var owner = Window.GetWindow(this);
+        InternalPageBridge.Handle(core, e.WebMessageAsJson, owner as IShellCommands, owner, ViewModel?.TabManager.IsPrivate ?? false);
+    }
+
+    private void OnInternalStateInvalidated(object? sender, EventArgs e)
+    {
+        if (_webView?.CoreWebView2 is { } core && InternalPages.IsInternal(core.Source))
+        {
+            InternalPageBridge.PostState(core, ViewModel?.TabManager.IsPrivate ?? false);
+        }
+    }
+
+    /// <summary>Leaving the Settings page in the middle of recording a shortcut must not leave shortcuts disabled.</summary>
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
+    {
+        if (sender is CoreWebView2 core && InternalPages.IsInternal(core.Source))
+        {
+            AppServices.Shortcuts.EndCapture();
+        }
+    }
+
+    // ------------------------------------------------------------ network
 
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e) =>
         AppServices.Downloads.TrackDownload(e.DownloadOperation);
@@ -308,6 +331,7 @@ public partial class BrowserTabView : UserControl
         // instead of just the ad it's meant to catch. Subresources (scripts, images, XHR...) are the
         // ones actually worth blocking, and failing quietly there doesn't break navigation.
         if (e.ResourceContext == CoreWebView2WebResourceContext.Document ||
+            !AppServices.CurrentSettings.IsAdBlockEnabled ||
             (ViewModel?.IsAdBlockDisabled ?? false))
         {
             return;
@@ -333,11 +357,13 @@ public partial class BrowserTabView : UserControl
         ViewModel?.TabManager.OpenTab(e.Uri);
     }
 
+    // -------------------------------------------------------- permissions
+
     /// <summary>
     /// Site permission requests (camera/mic/location/notifications...) are
     /// resolved instantly from a remembered per-origin decision if one
-    /// exists; otherwise a deferral is taken and the in-page prompt bar asks
-    /// the user, queuing further requests if more than one arrives at once.
+    /// exists; otherwise a deferral is taken and the prompt bar asks the
+    /// user, queuing further requests if more than one arrives at once.
     /// </summary>
     private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
     {
@@ -365,7 +391,7 @@ public partial class BrowserTabView : UserControl
 
         var (args, _) = _pendingPermissions.Peek();
         var host = Uri.TryCreate(args.Uri, UriKind.Absolute, out var uri) ? uri.Host : args.Uri;
-        PermissionText.Text = $"{host} demande : {DescribePermission(args.PermissionKind)}";
+        PermissionText.Text = $"{host} demande à {DescribePermission(args.PermissionKind)}";
         PermissionRememberCheckBox.IsChecked = true;
         PermissionBar.Visibility = Visibility.Visible;
     }
@@ -400,9 +426,11 @@ public partial class BrowserTabView : UserControl
         CoreWebView2PermissionKind.Geolocation => "connaître votre position",
         CoreWebView2PermissionKind.Notifications => "envoyer des notifications",
         CoreWebView2PermissionKind.ClipboardRead => "lire le presse-papiers",
-        CoreWebView2PermissionKind.MultipleAutomaticDownloads => "lancer plusieurs téléchargements automatiques",
-        _ => kind.ToString(),
+        CoreWebView2PermissionKind.MultipleAutomaticDownloads => "lancer plusieurs téléchargements",
+        _ => $"obtenir une autorisation ({kind})",
     };
+
+    // ------------------------------------------------------------ teardown
 
     private void TearDown()
     {
@@ -413,6 +441,19 @@ public partial class BrowserTabView : UserControl
 
         var webView = _webView;
         _webView = null;
+
+        InternalPageBridge.StateInvalidated -= OnInternalStateInvalidated;
+        AppServices.Theme.PropertyChanged -= OnThemePropertyChanged;
+
+        // A suspended tab can't answer pending permission prompts: deny them rather than leave the page waiting.
+        while (_pendingPermissions.Count > 0)
+        {
+            var (args, deferral) = _pendingPermissions.Dequeue();
+            args.State = CoreWebView2PermissionState.Deny;
+            deferral.Complete();
+        }
+
+        PermissionBar.Visibility = Visibility.Collapsed;
 
         ViewModel?.DetachCoreWebView2();
         ViewModel?.DetachZoomHost();

@@ -1,9 +1,9 @@
 <!--
   Vector icon set — Lucide (https://lucide.dev), ISC License (free/permissive,
   no attribution required), ported from their SVG source to WPF geometries so
-  they render crisp at any size and pick up the app's theme color via Stroke.
-  Original 24x24 viewBox preserved; render at Width/Height=16-20 with
-  Stretch="Uniform".
+  they render crisp at any size and pick up the theme color via Stroke.
+  One family, one stroke weight (VectorIcon), one 24x24 grid everywhere —
+  that consistency is most of what makes the chrome read as one product.
 -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -13,7 +13,7 @@
 
     <PathGeometry x:Key="IconBack" Figures="M12 19 L5 12 L12 5 M19 12 L5 12" />
     <PathGeometry x:Key="IconForward" Figures="M5 12 L19 12 M12 5 L19 12 L12 19" />
-    <PathGeometry x:Key="IconRefresh" Figures="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8 M21 3v5h-5 M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16 M8 16H3v5" />
+    <PathGeometry x:Key="IconRefresh" Figures="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8 M21 3v5h-5" />
     <PathGeometry x:Key="IconPlus" Figures="M5 12h14 M12 5v14" />
     <GeometryGroup x:Key="IconSettings">
         <PathGeometry Figures="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" />
@@ -36,12 +36,13 @@
     <PathGeometry x:Key="IconPin" Figures="M12 17v5 M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
     <PathGeometry x:Key="IconClose" Figures="M18 6 L6 18 M6 6 L18 18" />
     <PathGeometry x:Key="IconMinimize" Figures="M5 12h14" />
-    <RectangleGeometry x:Key="IconMaximize" Rect="3,3,18,18" RadiusX="2" RadiusY="2" />
+    <RectangleGeometry x:Key="IconMaximize" Rect="4,4,16,16" RadiusX="2" RadiusY="2" />
     <GeometryGroup x:Key="IconRestore">
-        <PathGeometry Figures="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-        <RectangleGeometry Rect="8,8,14,14" RadiusX="2" RadiusY="2" />
+        <PathGeometry Figures="M8 4h10a2 2 0 0 1 2 2v10" />
+        <RectangleGeometry Rect="4,8,12,12" RadiusX="2" RadiusY="2" />
     </GeometryGroup>
     <PathGeometry x:Key="IconChevronDown" Figures="M6 9 L12 15 L18 9" />
+    <PathGeometry x:Key="IconChevronRight" Figures="M9 18 L15 12 L9 6" />
     <PathGeometry x:Key="IconDownload" Figures="M12 15V3 M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10 L12 15 L17 10" />
     <PathGeometry x:Key="IconPuzzle" Figures="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" />
     <GeometryGroup x:Key="IconPip">
@@ -52,22 +53,66 @@
         <RectangleGeometry Rect="3,3,18,18" RadiusX="2" RadiusY="2" />
         <PathGeometry Figures="M9 3 L9 21" />
     </GeometryGroup>
-    <PathGeometry x:Key="IconChevronRight" Figures="M9 18 L15 12 L9 6" />
-    <GeometryGroup x:Key="IconMoreVertical">
-        <EllipseGeometry Center="12,5" RadiusX="1" RadiusY="1" />
-        <EllipseGeometry Center="12,12" RadiusX="1" RadiusY="1" />
-        <EllipseGeometry Center="12,19" RadiusX="1" RadiusY="1" />
+    <GeometryGroup x:Key="IconPanelRight">
+        <RectangleGeometry Rect="3,3,18,18" RadiusX="2" RadiusY="2" />
+        <PathGeometry Figures="M15 3 L15 21" />
     </GeometryGroup>
+    <GeometryGroup x:Key="IconMoreHorizontal">
+        <EllipseGeometry Center="5,12" RadiusX="1" RadiusY="1" />
+        <EllipseGeometry Center="12,12" RadiusX="1" RadiusY="1" />
+        <EllipseGeometry Center="19,12" RadiusX="1" RadiusY="1" />
+    </GeometryGroup>
+    <PathGeometry x:Key="IconStar" Figures="M12 2 L15.09 8.26 L22 9.27 L17 14.14 L18.18 21.02 L12 17.77 L5.82 21.02 L7 14.14 L2 9.27 L8.91 8.26 Z" />
+    <PathGeometry x:Key="IconBookmark" Figures="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+    <GeometryGroup x:Key="IconLock">
+        <RectangleGeometry Rect="3,11,18,11" RadiusX="2" RadiusY="2" />
+        <PathGeometry Figures="M7 11V7a5 5 0 0 1 10 0v4" />
+    </GeometryGroup>
+    <GeometryGroup x:Key="IconGlobe">
+        <EllipseGeometry Center="12,12" RadiusX="10" RadiusY="10" />
+        <PathGeometry Figures="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20 M2 12h20" />
+    </GeometryGroup>
+    <GeometryGroup x:Key="IconSearch">
+        <EllipseGeometry Center="11,11" RadiusX="8" RadiusY="8" />
+        <PathGeometry Figures="m21 21-4.3-4.3" />
+    </GeometryGroup>
+    <PathGeometry x:Key="IconHistory" Figures="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5 M12 7v5l4 2" />
+    <PathGeometry x:Key="IconFullscreen" Figures="M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7" />
+    <PathGeometry x:Key="IconExitFullscreen" Figures="M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7" />
+    <PathGeometry x:Key="IconTrash" Figures="M3 6h18 M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6 M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    <GeometryGroup x:Key="IconZoomIn">
+        <EllipseGeometry Center="11,11" RadiusX="8" RadiusY="8" />
+        <PathGeometry Figures="m21 21-4.35-4.35 M11 8v6 M8 11h6" />
+    </GeometryGroup>
+    <GeometryGroup x:Key="IconZoomOut">
+        <EllipseGeometry Center="11,11" RadiusX="8" RadiusY="8" />
+        <PathGeometry Figures="m21 21-4.35-4.35 M8 11h6" />
+    </GeometryGroup>
+    <PathGeometry x:Key="IconTranslate" Figures="M5 8l6 6 M4 14l6-6 2-3 M2 5h12 M7 2h1 M22 22l-5-10-5 10 M14 18h6" />
+    <PathGeometry x:Key="IconSave" Figures="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7 M7 3v4a1 1 0 0 0 1 1h7" />
+    <GeometryGroup x:Key="IconWindow">
+        <RectangleGeometry Rect="2,4,20,16" RadiusX="2" RadiusY="2" />
+        <PathGeometry Figures="M2 8h20 M6 4v4 M10 4v4" />
+    </GeometryGroup>
+    <PathGeometry x:Key="IconSpinner" Figures="M21 12a9 9 0 1 1-6.219-8.56" />
+    <PathGeometry x:Key="IconSparkle" Figures="M12 3v3 M12 18v3 M3 12h3 M18 12h3 M5.6 5.6l2.1 2.1 M16.3 16.3l2.1 2.1 M5.6 18.4l2.1-2.1 M16.3 7.7l2.1-2.1" />
 
     <Style x:Key="VectorIcon" TargetType="Path">
-        <Setter Property="Stroke" Value="{DynamicResource ChromeTextBrush}" />
-        <Setter Property="StrokeThickness" Value="2" />
+        <Setter Property="Stroke" Value="{DynamicResource TextBrush}" />
+        <Setter Property="StrokeThickness" Value="1.75" />
         <Setter Property="StrokeStartLineCap" Value="Round" />
         <Setter Property="StrokeEndLineCap" Value="Round" />
         <Setter Property="StrokeLineJoin" Value="Round" />
         <Setter Property="Stretch" Value="Uniform" />
         <Setter Property="Width" Value="16" />
         <Setter Property="Height" Value="16" />
+        <Setter Property="SnapsToDevicePixels" Value="False" />
+    </Style>
+
+    <Style x:Key="MenuIcon" TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+        <Setter Property="Stroke" Value="{DynamicResource TextSecondaryBrush}" />
     </Style>
 
 </ResourceDictionary>

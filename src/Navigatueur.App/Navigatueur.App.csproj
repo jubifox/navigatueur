@@ -10,8 +10,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Navigatueur.App</RootNamespace>
     <AssemblyName>Navigatueur</AssemblyName>
-    <Version>0.17.2</Version>
+    <Version>0.18.0</Version>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,7 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Resources\NewTab\**\*">
+    <Content Include="Resources\Pages\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\AdBlock\**\*">

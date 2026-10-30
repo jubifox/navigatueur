@@ -4,90 +4,106 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using Rectangle = System.Windows.Shapes.Rectangle;
+using Shape = System.Windows.Shapes.Shape;
 using System.Windows.Threading;
-using Navigatueur.App.Animation;
-using Navigatueur.App.Models;
 using Navigatueur.App.Services;
+using Navigatueur.App.Shell;
 using Navigatueur.App.ViewModels;
+using Navigatueur.App.Views;
+using Navigatueur.Core;
 using Navigatueur.Core.Settings;
+using Navigatueur.Core.Shortcuts;
 
 namespace Navigatueur.App;
 
-public partial class MainWindow : Window, Views.IWebViewOverlayHost
+/// <summary>
+/// A browser window. The page fills it; the toolbar and the tab column are
+/// panels that <see cref="ImmersiveShell"/> slides over it on demand (or keeps
+/// docked, in classic mode).
+///
+/// The same class serves three roles: the primary window (owns session
+/// persistence, the tray icon and app exit), a secondary "Nouvelle fenêtre"
+/// (own tabs, shared profile, persists nothing), and a private window (own
+/// throwaway profile, deleted on close, violet palette).
+/// </summary>
+public partial class MainWindow : Window, IShellCommands
 {
-    private const int WM_ENTERSIZEMOVE = 0x0231;
-    private const int WM_EXITSIZEMOVE = 0x0232;
-
-    private readonly Views.MusicOverlayWindow _musicOverlay = new();
     private readonly TabManagerService _tabManager;
+    private readonly MainWindowViewModel _viewModel;
     private readonly bool _isPrimary;
-    private Views.TabSidebarWindow? _tabSidebarWindow;
-    private Views.WebViewOverlayWindow? _webViewOverlay;
-    private Views.SettingsWindow? _settingsWindow;
-    private Views.ExtensionsWindow? _extensionsWindow;
-    private Views.HistoryWindow? _historyWindow;
-    private Views.PrivateBrowsingWindow? _privateWindow;
-
-    public Canvas? WebViewTrailCanvas => _webViewOverlay?.TrailCanvas;
-    private System.Windows.Forms.NotifyIcon? _trayIcon;
-    private bool _forceClose;
+    private readonly bool _isPrivate;
+    private readonly string? _privateProfileFolder;
+    private readonly ToolbarPanel _toolbar;
+    private readonly TabsPanel _tabs;
+    private readonly TranslateTransform _loadingStreakOffset = new(-240, 0);
+    private readonly WindowFrameController _frame;
+    private readonly ImmersiveShell _shell;
     private readonly DispatcherTimer? _autosaveTimer;
 
-    /// <summary>
-    /// <paramref name="tabManager"/>/<paramref name="isPrimary"/> are only
-    /// ever non-default for a window opened via "Nouvelle fenêtre" (see
-    /// OpenNewWindow) — a second, independent top-level browser window with
-    /// its own tab set. Everything that would corrupt shared state if two
-    /// windows both did it (autosave, session persistence, RequestForceQuit,
-    /// the tray icon) is scoped to the primary window only; a secondary
-    /// window is otherwise a fully normal MainWindow (own sidebar, toolbar,
-    /// shortcuts, extensions, history — it shares the real profile, it's not
-    /// a private-browsing window).
-    /// </summary>
-    public MainWindow(TabManagerService? tabManager = null, bool isPrimary = true)
+    private Views.MusicOverlayWindow? _musicOverlay;
+    private Views.ExtensionsWindow? _extensionsWindow;
+    private System.Windows.Forms.NotifyIcon? _trayIcon;
+    private BrowserTabViewModel? _observedTab;
+    private bool _forceClose;
+    private bool _enteredFullScreenForPage;
+
+    /// <param name="tabManager">Only for secondary/private windows: their own tab set. The primary window uses the app-wide one.</param>
+    /// <param name="isPrimary">Only the primary window saves the session, owns the tray icon and quits the app on close.</param>
+    /// <param name="isPrivate">Private browsing: violet palette, nothing recorded, <paramref name="privateProfileFolder"/> deleted on close.</param>
+    public MainWindow(TabManagerService? tabManager = null, bool isPrimary = true, bool isPrivate = false, string? privateProfileFolder = null)
     {
         InitializeComponent();
 
         _isPrimary = isPrimary;
+        _isPrivate = isPrivate;
+        _privateProfileFolder = privateProfileFolder;
         _tabManager = tabManager ?? AppServices.TabManager;
 
-        var settings = AppServices.CurrentSettings;
-        Width = settings.WindowWidth;
-        Height = settings.WindowHeight;
-        if (settings.WindowLeft.HasValue)
+        RestoreWindowBounds();
+
+        _viewModel = new MainWindowViewModel(_tabManager, isPrivate);
+        DataContext = _viewModel;
+
+        _toolbar = new ToolbarPanel(this) { DataContext = _viewModel };
+        _tabs = new TabsPanel(this) { DataContext = _viewModel };
+        ToolbarHost.Child = _toolbar;
+        SidebarHost.Child = _tabs;
+        LoadingHost.Child = BuildLoadingStrip();
+
+        var panelEffects = AppServices.Interface.Current.ArePanelEffectsEnabled;
+        ToolbarHost.RequestTransparency = panelEffects;
+        SidebarHost.RequestTransparency = panelEffects;
+        LoadingHost.RequestTransparency = false;
+
+        if (_isPrivate)
         {
-            Left = settings.WindowLeft.Value;
+            ApplyPrivatePalette();
         }
 
-        if (settings.WindowTop.HasValue)
-        {
-            Top = settings.WindowTop.Value;
-        }
+        _frame = new WindowFrameController(this, RootGrid);
+        _shell = new ImmersiveShell(
+            this, RootGrid, ContentHost, ToolbarHost, SidebarHost, LoadingHost,
+            _toolbar, _tabs, _frame, AppServices.Interface, FocusPage);
 
-        var viewModel = new MainWindowViewModel(_tabManager);
-        DataContext = viewModel;
-        viewModel.PropertyChanged += OnMainViewModelPropertyChanged;
+        // Shortcuts are caught wherever focus is: in the window (and the page,
+        // whose accelerator keys WebView2 re-raises here), or inside a panel —
+        // each panel is its own input root, so it needs its own hook.
+        PreviewKeyDown += OnShortcutKeyDown;
+        _toolbar.PreviewKeyDown += OnShortcutKeyDown;
+        _tabs.PreviewKeyDown += OnShortcutKeyDown;
 
-        if (_isPrimary && AppServices.Settings.IsFirstRun)
-        {
-            new Views.WelcomeWindow().ShowDialog();
-        }
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ObserveActiveTab();
 
-        // WPF throws if you assign Owner to a window that doesn't have a real
-        // Win32 handle yet — MainWindow's constructor is still running at this
-        // point, so `this` has no handle until SourceInitialized fires. Creating
-        // the sidebar window there instead (crashed every launch before this fix).
-        SourceInitialized += (_, _) => InitializeTabSidebar(viewModel);
-        LocationChanged += (_, _) => RepositionTabSidebar();
-        SizeChanged += (_, _) => RepositionTabSidebar();
-        StateChanged += (_, _) => RepositionTabSidebar();
-        ContentRendered += (_, _) => RepositionTabSidebar();
+        StateChanged += (_, _) => SyncFrameState();
+        _frame.FrameChanged += (_, _) => SyncFrameState();
+        AppServices.Theme.AppearanceChanged += OnAppearanceChanged;
 
-        ApplyAddressBarPosition();
-        AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
+        // Ctrl+T / "+" open a blank tab: put the caret in the address bar, like every browser.
+        _tabManager.TabOpened += OnTabOpened;
 
         if (_isPrimary)
         {
@@ -100,302 +116,430 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
                 _forceClose = true;
                 Close();
             };
-        }
 
-        // Only fires for genuinely new tabs (toolbar button, Ctrl+T) — not session
-        // restore or reopening a saved group, which create tabs directly and
-        // shouldn't steal focus on startup. Subscribed on *this* window's own
-        // tab manager, not the app-wide singleton — a secondary window must
-        // only react to its own tabs opening, never the primary window's.
-        _tabManager.TabOpened += _ => Dispatcher.BeginInvoke(
-            new Action(FocusAddressBar), DispatcherPriority.Input);
+            ContentRendered += OnFirstContentRendered;
+        }
 
         Closing += OnClosing;
+        Closed += OnClosed;
     }
 
-    private void InitializeTabSidebar(MainWindowViewModel viewModel)
+    // ================================================================ setup
+
+    private void RestoreWindowBounds()
     {
-        _tabSidebarWindow = new Views.TabSidebarWindow(viewModel) { Owner = this };
-        _tabSidebarWindow.Show();
+        var settings = AppServices.CurrentSettings;
+        Width = Math.Max(MinWidth, settings.WindowWidth);
+        Height = Math.Max(MinHeight, settings.WindowHeight);
 
-        // Re-run now that AddressBarSidebarSlot actually exists, in case the
-        // saved AddressBarPosition is "Sidebar" — the earlier call in the
-        // constructor fell back to the top toolbar slot since the sidebar
-        // window didn't exist yet at that point.
-        ApplyAddressBarPosition();
-
-        _webViewOverlay = new Views.WebViewOverlayWindow { Owner = this };
-        _webViewOverlay.Show();
-
-        RepositionTabSidebar();
-
-        // TabSidebarWindow/WebViewOverlayWindow are separate top-level HWNDs —
-        // Windows doesn't frame-sync them with this one during an interactive
-        // drag-move/resize, so continuously repositioning them via
-        // SizeChanged/LocationChanged still visibly lags a frame or more
-        // behind (exactly the "elements aren't glued together" glitching).
-        // Hiding them for the duration of the drag and reshowing them
-        // (correctly repositioned) the instant it ends reads as far more
-        // solid than letting them visibly tear away mid-drag.
-        if (PresentationSource.FromVisual(this) is HwndSource hwndSource)
+        if (settings.WindowLeft is { } left && settings.WindowTop is { } top)
         {
-            hwndSource.AddHook(WindowProcHook);
+            // Secondary windows cascade a little so they don't hide the primary one exactly.
+            var offset = _isPrimary ? 0 : 32;
+            Left = left + offset;
+            Top = top + offset;
+        }
+        else
+        {
+            WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        if (_isPrimary && settings.WasMaximized)
+        {
+            WindowState = WindowState.Maximized;
         }
     }
 
-    private IntPtr WindowProcHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    /// <summary>The 3px line shown at the top of the page while it loads and the toolbar (which has its own) is hidden.</summary>
+    private FrameworkElement BuildLoadingStrip()
     {
-        switch (msg)
+        var streak = new Rectangle { Width = 240, Height = 3, RenderTransform = _loadingStreakOffset };
+        streak.SetResourceReference(Shape.FillProperty, "AccentBrush");
+        streak.OpacityMask = new LinearGradientBrush(
+            new GradientStopCollection
+            {
+                new(Colors.Transparent, 0),
+                new(Colors.Black, 0.5),
+                new(Colors.Transparent, 1),
+            },
+            new Point(0, 0),
+            new Point(1, 0));
+
+        var track = new Canvas { ClipToBounds = true, IsHitTestVisible = false };
+        track.SetResourceReference(Panel.BackgroundProperty, "AccentSoftBrush");
+        track.Children.Add(streak);
+        return track;
+    }
+
+    private void ApplyPrivatePalette()
+    {
+        var overrides = AppServices.Theme.CreatePrivateOverrides();
+        foreach (var target in new FrameworkElement[] { this, _toolbar, _tabs, (FrameworkElement)LoadingHost.Child! })
         {
-            case WM_ENTERSIZEMOVE:
-                _tabSidebarWindow?.Hide();
-                _webViewOverlay?.Hide();
+            target.Resources.MergedDictionaries.Clear();
+            target.Resources.MergedDictionaries.Add(overrides);
+        }
+    }
+
+    private void OnAppearanceChanged(object? sender, EventArgs e)
+    {
+        if (_isPrivate)
+        {
+            ApplyPrivatePalette();
+        }
+
+        // Shadow strength depends on light/dark.
+        _shell.RefreshBehaviors();
+    }
+
+    private void OnFirstContentRendered(object? sender, EventArgs e)
+    {
+        ContentRendered -= OnFirstContentRendered;
+
+        var interfaceSettings = AppServices.Interface.Current;
+        if (AppServices.Settings.IsFirstRun || !interfaceSettings.HasSeenIntro)
+        {
+            new Views.WelcomeWindow(showEngineChoice: AppServices.Settings.IsFirstRun) { Owner = this }.ShowDialog();
+            AppServices.Interface.Update(s => s.HasSeenIntro = true);
+        }
+    }
+
+    // ========================================================= view model
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainWindowViewModel.ActiveTab))
+        {
+            ObserveActiveTab();
+        }
+    }
+
+    private void ObserveActiveTab()
+    {
+        if (_observedTab is not null)
+        {
+            _observedTab.PropertyChanged -= OnActiveTabPropertyChanged;
+        }
+
+        _observedTab = _viewModel.ActiveTab;
+        if (_observedTab is not null)
+        {
+            _observedTab.PropertyChanged += OnActiveTabPropertyChanged;
+        }
+
+        SyncLoading();
+        SyncPageFullScreen();
+    }
+
+    private void OnActiveTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(BrowserTabViewModel.IsLoading):
+                SyncLoading();
                 break;
-            case WM_EXITSIZEMOVE:
-                RepositionTabSidebar();
+            case nameof(BrowserTabViewModel.IsPageFullScreen):
+                SyncPageFullScreen();
                 break;
         }
-
-        return IntPtr.Zero;
     }
 
-    /// <summary>
-    /// Keeps the separate TabSidebarWindow glued to MainWindow's left edge,
-    /// spanning from just below the toolbar down to the bottom address bar
-    /// slot (if that's where it's currently docked). Hidden while minimized,
-    /// since an owned window doesn't automatically follow its owner's
-    /// minimize/restore state.
-    /// </summary>
-    private void RepositionTabSidebar()
+    private void SyncLoading()
     {
-        if (_tabSidebarWindow is null)
+        var loading = _observedTab?.IsLoading == true;
+        _shell.IsLoading = loading;
+
+        if (loading)
+        {
+            var sweep = new DoubleAnimation(-240, Math.Max(ActualWidth, 800), TimeSpan.FromMilliseconds(1100))
+            {
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            };
+            _loadingStreakOffset.BeginAnimation(TranslateTransform.XProperty, sweep);
+        }
+        else
+        {
+            _loadingStreakOffset.BeginAnimation(TranslateTransform.XProperty, null);
+        }
+    }
+
+    /// <summary>A video (or any element) went fullscreen in the page: make the window fullscreen too, and get every panel out of the way.</summary>
+    private void SyncPageFullScreen()
+    {
+        var pageFullScreen = _observedTab?.IsPageFullScreen == true;
+        _shell.IsPageFullScreen = pageFullScreen;
+
+        if (pageFullScreen && !_frame.IsFullScreen)
+        {
+            _enteredFullScreenForPage = true;
+            _frame.EnterFullScreen();
+        }
+        else if (!pageFullScreen && _enteredFullScreenForPage)
+        {
+            _enteredFullScreenForPage = false;
+            _frame.ExitFullScreen();
+        }
+    }
+
+    private void SyncFrameState()
+    {
+        _viewModel.IsMaximized = WindowState == WindowState.Maximized;
+        _viewModel.IsFullScreen = _frame.IsFullScreen;
+    }
+
+    private void OnTabOpened(BrowserTabViewModel tab)
+    {
+        if (tab.InitialUrl != InternalPages.NewTabUrl && tab.InitialUrl != AppServices.CurrentSettings.HomePageUrl)
         {
             return;
         }
 
-        if (WindowState == WindowState.Minimized)
+        Dispatcher.BeginInvoke(new Action(() =>
         {
-            _tabSidebarWindow.Hide();
-            _webViewOverlay?.Hide();
-            return;
-        }
-
-        var topOffset = TitleBarBorder.ActualHeight + ToolbarBorder.ActualHeight;
-        var bottomOffset = AddressBarBottomSlot.Child is not null ? AddressBarBottomSlot.ActualHeight : 0;
-
-        _tabSidebarWindow.Left = Left;
-        _tabSidebarWindow.Top = Top + topOffset;
-        _tabSidebarWindow.Height = Math.Max(0, ActualHeight - topOffset - bottomOffset);
-        _tabSidebarWindow.SyncBackgroundGeometry(ActualWidth, ActualHeight, topOffset);
-
-        if (!_tabSidebarWindow.IsVisible)
-        {
-            _tabSidebarWindow.Show();
-        }
-
-        RepositionWebViewOverlay(topOffset, bottomOffset);
+            _shell.RevealToolbar();
+            _toolbar.FocusAddressBar();
+        }), DispatcherPriority.Input);
     }
 
-    /// <summary>
-    /// Tracks ContentHost's own on-screen rect (not the sidebar's) — the
-    /// area WebView2 actually renders into. ContentHost.Margin.Left is the
-    /// docked sidebar inset (see AnimateContentInset), so this stays correct
-    /// whether the sidebar is collapsed or pinned open, and doesn't move for
-    /// a temporary hover-expand (which floats over content instead).
-    /// </summary>
-    private void RepositionWebViewOverlay(double topOffset, double bottomOffset)
+    // ======================================================== shortcuts
+
+    private void OnShortcutKeyDown(object sender, KeyEventArgs e)
     {
-        if (_webViewOverlay is null)
+        if (e.Handled || !AppServices.Shortcuts.TryResolve(e, out var commandId))
         {
             return;
         }
 
-        if (WindowState == WindowState.Minimized)
+        e.Handled = true;
+        Execute(commandId);
+    }
+
+    // ===================================================== IShellCommands
+
+    public void Execute(string commandId)
+    {
+        var active = _tabManager.ActiveTab;
+
+        if (commandId.StartsWith(ShortcutCommands.SelectTabPrefix, StringComparison.Ordinal))
         {
-            _webViewOverlay.Hide();
+            if (commandId == ShortcutCommands.SelectLastTab)
+            {
+                _tabManager.ActivateLastTab();
+            }
+            else if (int.TryParse(commandId[ShortcutCommands.SelectTabPrefix.Length..], out var number))
+            {
+                _tabManager.ActivateTabAtIndex(number - 1);
+            }
+
             return;
         }
 
-        var leftInset = ContentHost.Margin.Left;
-        _webViewOverlay.SyncBounds(
-            Left + leftInset,
-            Top + topOffset,
-            ActualWidth - leftInset,
-            Math.Max(0, ActualHeight - topOffset - bottomOffset));
-
-        if (!_webViewOverlay.IsVisible)
+        switch (commandId)
         {
-            _webViewOverlay.Show();
-        }
-    }
-
-    private void OnThemePropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(ThemeService.AddressBarPosition))
-        {
-            ApplyAddressBarPosition();
-        }
-    }
-
-    /// <summary>
-    /// Only reacts to IsSidebarPinned, not IsSidebarExpanded — a temporary
-    /// hover-expand should float the sidebar over the page (v0.12 behavior),
-    /// not shove the page's content aside. Only pinning the sidebar open
-    /// changes how much width it permanently reserves.
-    /// </summary>
-    private void OnMainViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(MainWindowViewModel.IsSidebarPinned) && sender is MainWindowViewModel vm)
-        {
-            AnimateContentInset(vm.IsSidebarPinned ? Views.TabSidebarWindow.ExpandedWidth : Views.TabSidebarWindow.CollapsedWidth);
-        }
-    }
-
-    private void AnimateContentInset(double toPixels)
-    {
-        var animation = new ThicknessAnimation
-        {
-            To = new Thickness(toPixels, 0, 0, 0),
-            Duration = TimeSpan.FromMilliseconds(280),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
-            FillBehavior = FillBehavior.Stop,
-        };
-        animation.Completed += (_, _) =>
-        {
-            ContentHost.Margin = new Thickness(toPixels, 0, 0, 0);
-            RepositionTabSidebar();
-        };
-        ContentHost.BeginAnimation(FrameworkElement.MarginProperty, animation);
-    }
-
-    /// <summary>
-    /// The address bar is a single TextBox instance moved between empty slot
-    /// Borders (top toolbar, bottom of the window, top of the tab sidebar —
-    /// the latter in the separate TabSidebarWindow) rather than duplicated,
-    /// so there's exactly one source of truth for its focus/selection state
-    /// regardless of where it's docked.
-    /// </summary>
-    private void ApplyAddressBarPosition()
-    {
-        AddressBarTopSlot.Child = null;
-        AddressBarBottomSlot.Child = null;
-        if (_tabSidebarWindow is not null)
-        {
-            _tabSidebarWindow.AddressBarSidebarSlot.Child = null;
-        }
-
-        var target = AppServices.Theme.AddressBarPosition switch
-        {
-            "Bottom" => AddressBarBottomSlot,
-            "Sidebar" => _tabSidebarWindow?.AddressBarSidebarSlot ?? AddressBarTopSlot,
-            _ => AddressBarTopSlot,
-        };
-        target.Child = AddressBarTextBox;
-        RepositionTabSidebar();
-    }
-
-    private CursorTrailTracker? _cursorTrailTracker;
-
-    /// <summary>
-    /// Cursor trail over the app's own WPF chrome (toolbar, title bar) — the
-    /// sidebar has its own separate trail since it's a separate window now.
-    /// Never sees moves over actual page content; WebView2 hosts that in a
-    /// separate native child window that never routes mouse input through WPF.
-    /// </summary>
-    private void OnWindowMouseMoveForTrail(object sender, MouseEventArgs e)
-    {
-        if (!AppServices.Theme.IsCursorTrailEnabled)
-        {
-            return;
-        }
-
-        _cursorTrailTracker ??= new CursorTrailTracker(CursorTrailCanvas);
-        _cursorTrailTracker.OnMove(e.GetPosition(CursorTrailCanvas));
-    }
-
-    /// <summary>
-    /// Standard browser shortcuts. Only ever fires while a WPF element has
-    /// keyboard focus (address bar, tab strip, toolbar) — WebView2 hosts page
-    /// content in a separate native child window, so these don't fire while
-    /// focus is inside a page itself, same limitation as Ctrl+F noted elsewhere.
-    /// </summary>
-    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        var vm = (MainWindowViewModel)DataContext;
-
-        if (e.Key == Key.F5)
-        {
-            vm.ActiveTab?.ReloadCommand.Execute(null);
-            e.Handled = true;
-            return;
-        }
-
-        if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
-        {
-            return;
-        }
-
-        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
-
-        switch (e.Key)
-        {
-            case Key.T:
+            case ShortcutCommands.NewTab:
                 _tabManager.OpenTab();
-                e.Handled = true;
                 break;
-            case Key.W:
-                if (vm.ActiveTab is { } activeTab)
+            case ShortcutCommands.CloseTab:
+                if (active is not null)
                 {
-                    _tabManager.CloseTab(activeTab);
+                    _tabManager.CloseTab(active);
                 }
 
-                e.Handled = true;
                 break;
-            case Key.Tab:
-                _tabManager.ActivateAdjacentTab(shift ? -1 : 1);
-                e.Handled = true;
+            case ShortcutCommands.NextTab:
+                _tabManager.ActivateAdjacentTab(1);
                 break;
-            case Key.L:
-                FocusAddressBar();
-                e.Handled = true;
+            case ShortcutCommands.PreviousTab:
+                _tabManager.ActivateAdjacentTab(-1);
                 break;
-            case Key.R:
-                vm.ActiveTab?.ReloadCommand.Execute(null);
-                e.Handled = true;
+            case ShortcutCommands.ReopenClosedTab:
+                _tabManager.ReopenClosedTab();
                 break;
-            case Key.N when shift:
-                OpenPrivateWindow();
-                e.Handled = true;
+            case ShortcutCommands.ShowTabs:
+                _shell.RevealSidebar();
+                _tabs.FocusActiveTab();
                 break;
-            case Key.N:
+            case ShortcutCommands.FocusAddressBar:
+                _shell.RevealToolbar();
+                _toolbar.FocusAddressBar();
+                break;
+            case ShortcutCommands.Reload:
+                active?.ReloadCommand.Execute(null);
+                break;
+            case ShellCommandIds.Stop:
+                active?.StopCommand.Execute(null);
+                break;
+            case ShortcutCommands.Back:
+                if (active?.GoBackCommand.CanExecute(null) == true)
+                {
+                    active.GoBackCommand.Execute(null);
+                }
+
+                break;
+            case ShortcutCommands.Forward:
+                if (active?.GoForwardCommand.CanExecute(null) == true)
+                {
+                    active.GoForwardCommand.Execute(null);
+                }
+
+                break;
+            case ShortcutCommands.ToggleFullScreen:
+                ToggleFullScreen();
+                break;
+            case ShortcutCommands.ToggleBookmark:
+                ToggleBookmark();
+                break;
+            case ShortcutCommands.NewWindow:
                 OpenNewWindow();
-                e.Handled = true;
                 break;
-            case >= Key.D1 and <= Key.D8:
-                _tabManager.ActivateTabAtIndex(e.Key - Key.D1);
-                e.Handled = true;
+            case ShortcutCommands.NewPrivateWindow:
+                OpenPrivateWindow();
                 break;
-            case Key.D9:
-                _tabManager.ActivateLastTab();
-                e.Handled = true;
+            case ShortcutCommands.OpenHistory:
+                OpenInternalPage(InternalPages.HistoryUrl);
+                break;
+            case ShortcutCommands.OpenDownloads:
+                _shell.RevealToolbar();
+                _toolbar.ToggleDownloads();
+                break;
+            case ShortcutCommands.OpenSettings:
+                OpenInternalPage(InternalPages.SettingsUrl);
+                break;
+            case ShellCommandIds.SaveAs:
+                SaveActivePageAs();
+                break;
+            case ShellCommandIds.Find:
+                FindInPage();
+                break;
+            case ShellCommandIds.Translate:
+                active?.TranslatePageCommand.Execute(null);
+                break;
+            case ShellCommandIds.PictureInPicture:
+                active?.TogglePictureInPictureCommand.Execute(null);
+                break;
+            case ShellCommandIds.ZoomIn:
+                active?.ZoomInCommand.Execute(null);
+                break;
+            case ShellCommandIds.ZoomOut:
+                active?.ZoomOutCommand.Execute(null);
+                break;
+            case ShellCommandIds.ZoomReset:
+                active?.ResetZoomCommand.Execute(null);
+                break;
+            case ShellCommandIds.ToggleMusic:
+                ToggleMusicOverlay();
+                break;
+            case ShellCommandIds.OpenExtensions:
+                OpenExtensionsWindow();
+                break;
+            case ShellCommandIds.InstallUpdate:
+                InstallUpdate();
+                break;
+            case ShellCommandIds.Minimize:
+                _frame.Minimize();
+                break;
+            case ShellCommandIds.ToggleMaximize:
+                _frame.ToggleMaximize();
+                break;
+            case ShellCommandIds.CloseWindow:
+                Close();
+                break;
+            case ShellCommandIds.ToggleSidebarDock:
+                AppServices.Interface.ToggleSidebarDocked();
+                break;
+            case ShellCommandIds.HideToolbar:
+                _shell.HideToolbar();
+                break;
+            case ShellCommandIds.HideTabs:
+                _shell.HideSidebar();
                 break;
         }
     }
 
+    public void NavigateActiveTab(string input) => _tabManager.ActiveTab?.NavigateTo(input);
+
+    public void OpenUrl(string url, bool inBackgroundTab)
+    {
+        if (inBackgroundTab || _tabManager.ActiveTab is null)
+        {
+            _tabManager.OpenBackgroundTab(url);
+        }
+        else
+        {
+            _tabManager.ActiveTab.NavigateTo(url);
+            FocusPage();
+        }
+    }
+
+    public void FocusPage() => _tabManager.ActiveTab?.FocusPage();
+
+    public void StartWindowDrag() => _frame.StartDrag();
+
+    // =========================================================== actions
+
+    private void ToggleFullScreen()
+    {
+        if (_observedTab?.IsPageFullScreen == true)
+        {
+            // F11 while a video is fullscreen leaves the video's fullscreen, which in turn restores the window.
+            _ = _observedTab.CoreWebView?.ExecuteScriptAsync("document.exitFullscreen && document.exitFullscreen()");
+            return;
+        }
+
+        _frame.ToggleFullScreen();
+    }
+
+    private void ToggleBookmark()
+    {
+        var active = _tabManager.ActiveTab;
+        if (active is null)
+        {
+            return;
+        }
+
+        AppServices.Bookmarks.Toggle(active.AddressBarText, active.Title);
+
+        // The star is the only feedback: show it briefly if the toolbar is hidden.
+        if (!_shell.IsToolbarShown)
+        {
+            _shell.RevealToolbar();
+        }
+    }
+
+    /// <summary>Settings and history are pages: reuse a tab already showing one, else the current blank tab, else a new tab.</summary>
+    private void OpenInternalPage(string url)
+    {
+        var existing = _tabManager.Tabs.FirstOrDefault(t =>
+            string.Equals(StripFragment(t.AddressBarText), url, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            _tabManager.ActivateTab(existing);
+            return;
+        }
+
+        var active = _tabManager.ActiveTab;
+        if (active is not null && string.Equals(StripFragment(active.AddressBarText), InternalPages.NewTabUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            active.NavigateTo(url);
+            return;
+        }
+
+        _tabManager.OpenTab(url);
+    }
+
+    private static string StripFragment(string url)
+    {
+        var index = url.IndexOfAny(new[] { '#', '?' });
+        return index < 0 ? url : url[..index];
+    }
+
     /// <summary>
-    /// A genuinely separate top-level browser window (own tab set, own
-    /// sidebar/toolbar) sharing the real profile — history and extensions
-    /// still work normally, unlike a private-browsing window. It does NOT
-    /// persist its own tabs to settings.json (that would race with the
-    /// primary window's own autosave/close-time writes and corrupt whichever
-    /// saved last) — closing it just closes it; only the primary window's
-    /// session is ever restored on next launch. A throwaway AppSettings copy
-    /// (not the shared AppServices.CurrentSettings instance) keeps its
-    /// TabManagerService from restoring the primary window's own tabs into
-    /// this "new" window — it starts on a single fresh tab, same as a real
-    /// browser's New Window.
+    /// A genuinely separate browser window (own tab set, own panels) on the
+    /// real profile. It never writes the session: only the primary window's
+    /// tabs are restored on next launch.
     /// </summary>
-    private void OpenNewWindow()
+    private static void OpenNewWindow()
     {
         var freshSettings = new AppSettings
         {
@@ -406,21 +550,32 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         new MainWindow(tabManager, isPrimary: false).Show();
     }
 
-    private void FocusAddressBar()
+    /// <summary>A private window: its own throwaway WebView2 profile under Temp, so cookies, cache and history never touch the normal one.</summary>
+    private static void OpenPrivateWindow()
     {
-        AddressBarTextBox.Focus();
-        AddressBarTextBox.SelectAll();
+        var profileFolder = Path.Combine(Path.GetTempPath(), "Navigatueur", "Private", Guid.NewGuid().ToString("N"));
+        var environment = new WebView2EnvironmentService(profileFolder);
+        var tabManager = new TabManagerService(new AppSettings(), environment, isPrivate: true, persistsToSettings: false);
+        new MainWindow(tabManager, isPrimary: false, isPrivate: true, privateProfileFolder: profileFolder).Show();
     }
 
-    private void OnMinimizeClick(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e) =>
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-
-    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
-
-    private void OnToggleMusicOverlayClick(object sender, RoutedEventArgs e)
+    private void OpenExtensionsWindow()
     {
+        if (_extensionsWindow is null)
+        {
+            _extensionsWindow = new Views.ExtensionsWindow { Owner = this };
+            _extensionsWindow.Closed += (_, _) => _extensionsWindow = null;
+            _extensionsWindow.Show();
+        }
+        else
+        {
+            _extensionsWindow.Activate();
+        }
+    }
+
+    private void ToggleMusicOverlay()
+    {
+        _musicOverlay ??= new Views.MusicOverlayWindow();
         if (_musicOverlay.IsVisible)
         {
             _musicOverlay.Hide();
@@ -431,82 +586,175 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         }
     }
 
+    private async void InstallUpdate()
+    {
+        var update = AppServices.Update;
+        if (!update.IsUpdateAvailable)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            this,
+            $"La version {update.LatestVersion} est disponible. La télécharger et l'installer maintenant ? Navigatueur se fermera pendant l'installation.",
+            "Mise à jour disponible",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            await update.DownloadAndInstallAsync();
+        }
+    }
+
+    private async void SaveActivePageAs()
+    {
+        var activeTab = _tabManager.ActiveTab;
+        if (activeTab is null)
+        {
+            return;
+        }
+
+        var mhtml = await activeTab.CaptureMhtmlAsync();
+        if (mhtml is null)
+        {
+            MessageBox.Show(this, "Impossible d'enregistrer cette page.", "Enregistrer sous",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Page web (*.mhtml)|*.mhtml",
+            FileName = SanitizeFileName(string.IsNullOrWhiteSpace(activeTab.Title) ? "page" : activeTab.Title),
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            await File.WriteAllTextAsync(dialog.FileName, mhtml);
+        }
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            name = name.Replace(invalid, '_');
+        }
+
+        return name;
+    }
+
     /// <summary>
-    /// Closing the main window normally quits the app. But if the floating
-    /// music overlay is currently up, closing instead backgrounds the browser
-    /// (hide + tray icon) so the mini-player keeps running — matching how
-    /// Spotify/Discord-style mini-players survive their host app closing.
-    /// None of this applies to a secondary "Nouvelle fenêtre" window: it just
-    /// closes, tearing down only its own tabs' WebView2s — it must never
-    /// touch settings.json, the tray icon, or exit the whole process, since
-    /// the primary window (and possibly other secondary windows) may still
-    /// be open.
+    /// Chromium has its own find bar (Ctrl+F) once the page has focus; this
+    /// menu entry focuses the page and sends it that keystroke, for people who
+    /// look for the command in a menu rather than remember the shortcut.
+    /// </summary>
+    private void FindInPage()
+    {
+        var webView = _tabManager.ActiveTab?.WebViewControl;
+        if (webView is null)
+        {
+            return;
+        }
+
+        webView.Focus();
+        System.Windows.Forms.SendKeys.SendWait("^f");
+    }
+
+    // ===================================================== closing / tray
+
+    /// <summary>
+    /// Closing the primary window quits the app — unless the music mini-player
+    /// is open, in which case the browser goes to the tray so the player keeps
+    /// running. Secondary and private windows just close their own tabs.
     /// </summary>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (!_isPrimary)
         {
-            foreach (var tab in _tabManager.Tabs)
-            {
-                tab.IsSuspended = true;
-            }
-
+            SuspendAllTabs();
             return;
         }
 
-        if (!_forceClose && _musicOverlay.IsVisible)
+        if (!_forceClose && _musicOverlay is { IsVisible: true })
         {
             e.Cancel = true;
-            // Persist now, not only on a real quit — otherwise a session that
-            // never explicitly hits "Quitter" from the tray (closed via Task
-            // Manager, or just left running for days) loses every tab
-            // opened/closed since the last real exit, and the *previous*
-            // (stale) session gets restored next launch instead.
             SaveSessionState();
             Hide();
-            _tabSidebarWindow?.Hide();
-            _webViewOverlay?.Hide();
             ShowTrayIcon();
             return;
         }
 
-        _musicOverlay.ShutDown();
+        _musicOverlay?.ShutDown();
         _trayIcon?.Dispose();
         _trayIcon = null;
 
         SaveSessionState();
 
-        // WebView2's renderer/GPU/network child processes are only reliably
-        // torn down if every live CoreWebView2 is explicitly disposed before
-        // exit — otherwise background timers (idle-suspend, update checks,
-        // memory monitor) can keep this process alive a moment longer than
-        // expected, and an audio-playing tab's renderer has been observed to
-        // keep producing sound during that gap. Suspending every tab tears
-        // down its WebView2 synchronously via the existing suspend/resume
-        // pipeline, then a hard process exit guarantees nothing lingers.
-        // Only this (primary) window's own tabs — a still-open secondary
-        // window's tabs get the same treatment from its own OnClosing when
-        // Environment.Exit tears it down too, but there's no harm in it
-        // never running there since the process is about to die regardless.
+        // Disposing every live WebView2 before exit is what reliably tears down
+        // Chromium's child processes — otherwise an audio tab has been heard
+        // playing on for a moment after the window disappeared.
+        SuspendAllTabs();
+        Environment.Exit(0);
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        AppServices.Theme.AppearanceChanged -= OnAppearanceChanged;
+        _tabManager.TabOpened -= OnTabOpened;
+        _viewModel.Detach();
+
+        if (_privateProfileFolder is not null)
+        {
+            _ = TryDeletePrivateProfileAsync(_privateProfileFolder);
+        }
+    }
+
+    private void SuspendAllTabs()
+    {
         foreach (var tab in _tabManager.Tabs)
         {
             tab.IsSuspended = true;
         }
+    }
 
-        Environment.Exit(0);
+    /// <summary>Best effort: WebView2's processes can hold file locks for a moment after the window closes.</summary>
+    private static async Task TryDeletePrivateProfileAsync(string folder)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                if (Directory.Exists(folder))
+                {
+                    Directory.Delete(folder, recursive: true);
+                }
+
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await Task.Delay(500);
+            }
+        }
     }
 
     private void SaveSessionState()
     {
         var settings = AppServices.CurrentSettings;
-        settings.WindowWidth = Width;
-        settings.WindowHeight = Height;
-        settings.WindowLeft = Left;
-        settings.WindowTop = Top;
+        var bounds = _frame.RestoreBounds;
+        if (bounds.Width > 0 && bounds.Height > 0)
+        {
+            settings.WindowWidth = bounds.Width;
+            settings.WindowHeight = bounds.Height;
+            settings.WindowLeft = bounds.Left;
+            settings.WindowTop = bounds.Top;
+        }
 
-        var tabManager = _tabManager;
+        settings.WasMaximized = WindowState == WindowState.Maximized || _frame.WasMaximizedBeforeFullScreen;
 
-        settings.Groups = tabManager.Groups.Select(group => new SessionGroupState
+        settings.Groups = _tabManager.Groups.Select(group => new SessionGroupState
         {
             Id = group.Id,
             Name = group.Name,
@@ -514,19 +762,17 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
             IsCollapsed = group.IsCollapsed,
         }).ToList();
 
-        settings.Tabs = tabManager.Tabs.Select(tab => new SessionTabState
+        settings.Tabs = _tabManager.Tabs.Select(tab => new SessionTabState
         {
             Url = tab.AddressBarText,
             GroupId = tab.GroupId,
             IsPinned = tab.IsPinned,
         }).ToList();
 
-        settings.ActiveTabIndex = tabManager.ActiveTab is null
+        settings.ActiveTabIndex = _tabManager.ActiveTab is null
             ? -1
-            : tabManager.Tabs.IndexOf(tabManager.ActiveTab);
+            : _tabManager.Tabs.IndexOf(_tabManager.ActiveTab);
 
-        // SavedGroups is already kept in sync with disk by TabManagerService
-        // whenever it changes, so it's deliberately not re-serialized here.
         AppServices.Settings.Save(settings);
     }
 
@@ -566,260 +812,9 @@ public partial class MainWindow : Window, Views.IWebViewOverlayHost
         Show();
         WindowState = WindowState.Normal;
         Activate();
-        RepositionTabSidebar();
         if (_trayIcon is not null)
         {
             _trayIcon.Visible = false;
         }
-    }
-
-    /// <summary>WPF's TextBox only handles double-click (select word) natively — triple-click (select the whole address) needs an explicit hook.</summary>
-    private void OnAddressBarPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ClickCount == 3 && sender is TextBox textBox)
-        {
-            textBox.SelectAll();
-        }
-    }
-
-    private static readonly string[] CommonSiteSuggestions =
-    {
-        "youtube.com", "google.com", "github.com", "wikipedia.org", "reddit.com",
-        "twitter.com", "amazon.com", "netflix.com", "gmail.com", "twitch.tv",
-        "instagram.com", "linkedin.com", "spotify.com", "discord.com",
-    };
-
-    private bool _isApplyingAddressBarSuggestion;
-    private int _lastAddressBarTypedLength;
-
-    /// <summary>
-    /// Classic omnibox-style inline completion: appends the best-matching
-    /// hostname as *selected* text past the caret, so the next keystroke
-    /// (which types over a selection) naturally overwrites it, and Enter
-    /// navigates to the completed URL if left untouched.
-    /// </summary>
-    private void OnAddressBarTextBoxTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (_isApplyingAddressBarSuggestion)
-        {
-            return;
-        }
-
-        var textBox = (TextBox)sender;
-        var typed = textBox.Text;
-        var isDeleting = typed.Length < _lastAddressBarTypedLength;
-        _lastAddressBarTypedLength = typed.Length;
-
-        if (isDeleting || string.IsNullOrEmpty(typed) || textBox.SelectionStart != typed.Length)
-        {
-            return;
-        }
-
-        var suggestion = FindAddressBarSuggestion(typed);
-        if (suggestion is null || suggestion.Length <= typed.Length)
-        {
-            return;
-        }
-
-        _isApplyingAddressBarSuggestion = true;
-        textBox.Text = suggestion;
-        textBox.SelectionStart = typed.Length;
-        textBox.SelectionLength = suggestion.Length - typed.Length;
-        _isApplyingAddressBarSuggestion = false;
-
-        // Without this, the next keystroke (e.g. pressing Delete to remove the
-        // selected suggestion) compared its shrunk length against the length
-        // from *before* the suggestion was appended — since that never changed
-        // while the guard above was skipping the length update, a Delete that
-        // correctly removed the whole suggestion looked like "no change in
-        // length" and immediately re-triggered the same suggestion right back.
-        _lastAddressBarTypedLength = suggestion.Length;
-    }
-
-    /// <summary>Best-matching hostname (history first, then a handful of common sites for a cold history), or null if nothing starts with what's typed.</summary>
-    private static string? FindAddressBarSuggestion(string typed)
-    {
-        if (typed.Contains(' ') || typed.Contains('/'))
-        {
-            return null; // looks like a search query or a path, not a bare domain being typed
-        }
-
-        var historyHosts = AppServices.History.Entries
-            .Select(entry => TryGetHost(entry.Url))
-            .Where(host => host is not null)
-            .Cast<string>();
-
-        return historyHosts
-            .Concat(CommonSiteSuggestions)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Where(host => host.StartsWith(typed, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(host => host.Length)
-            .FirstOrDefault();
-    }
-
-    private static string? TryGetHost(string url)
-    {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-        {
-            return null;
-        }
-
-        return uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host;
-    }
-
-    private void OnToggleDownloadsClick(object sender, RoutedEventArgs e) =>
-        DownloadsPopup.IsOpen = !DownloadsPopup.IsOpen;
-
-    private async void OnUpdateClick(object sender, RoutedEventArgs e)
-    {
-        var update = AppServices.Update;
-        var result = MessageBox.Show(
-            this,
-            $"Une nouvelle version ({update.LatestVersion}) est disponible. Télécharger et installer maintenant ? L'application va se fermer pendant l'installation.",
-            "Mise à jour disponible",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
-        {
-            await update.DownloadAndInstallAsync();
-        }
-    }
-
-    private void OnOpenExtensionsClick(object sender, RoutedEventArgs e)
-    {
-        if (_extensionsWindow is null)
-        {
-            _extensionsWindow = new Views.ExtensionsWindow { Owner = this };
-            _extensionsWindow.Closed += (_, _) => _extensionsWindow = null;
-            _extensionsWindow.Show();
-        }
-        else
-        {
-            _extensionsWindow.Activate();
-        }
-    }
-
-    private void OnOpenHistoryClick(object sender, RoutedEventArgs e)
-    {
-        if (_historyWindow is null)
-        {
-            _historyWindow = new Views.HistoryWindow { Owner = this };
-            _historyWindow.Closed += (_, _) => _historyWindow = null;
-            _historyWindow.Show();
-        }
-        else
-        {
-            _historyWindow.Activate();
-        }
-    }
-
-    private void OnOpenSettingsClick(object sender, RoutedEventArgs e)
-    {
-        if (_settingsWindow is null)
-        {
-            _settingsWindow = new Views.SettingsWindow { Owner = this };
-            _settingsWindow.Closed += (_, _) => _settingsWindow = null;
-            _settingsWindow.Show();
-        }
-        else
-        {
-            _settingsWindow.Activate();
-        }
-    }
-
-    private void OnOpenNewWindowClick(object sender, RoutedEventArgs e) => OpenNewWindow();
-
-    private void OnOpenPrivateWindowClick(object sender, RoutedEventArgs e) => OpenPrivateWindow();
-
-    private void OpenPrivateWindow()
-    {
-        if (_privateWindow is null)
-        {
-            _privateWindow = new Views.PrivateBrowsingWindow();
-            _privateWindow.Closed += (_, _) => _privateWindow = null;
-            _privateWindow.Show();
-        }
-        else
-        {
-            _privateWindow.Activate();
-        }
-    }
-
-    private void OnOpenSavedGroupsClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu })
-        {
-            menu.IsOpen = true;
-        }
-    }
-
-    private void OnOpenMoreMenuClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { ContextMenu: { } menu })
-        {
-            menu.IsOpen = true;
-        }
-    }
-
-    private async void OnSaveAsClick(object sender, RoutedEventArgs e)
-    {
-        var activeTab = (DataContext as MainWindowViewModel)?.ActiveTab;
-        if (activeTab is null)
-        {
-            return;
-        }
-
-        var mhtml = await activeTab.CaptureMhtmlAsync();
-        if (mhtml is null)
-        {
-            MessageBox.Show(this, "Impossible d'enregistrer cette page.", "Enregistrer sous",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var suggestedName = SanitizeFileName(string.IsNullOrWhiteSpace(activeTab.Title) ? "page" : activeTab.Title);
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Filter = "Page web (*.mhtml)|*.mhtml",
-            FileName = suggestedName,
-        };
-
-        if (dialog.ShowDialog(this) == true)
-        {
-            await File.WriteAllTextAsync(dialog.FileName, mhtml);
-        }
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        foreach (var invalid in Path.GetInvalidFileNameChars())
-        {
-            name = name.Replace(invalid, '_');
-        }
-
-        return name;
-    }
-
-    private void OnTranslatePageClick(object sender, RoutedEventArgs e) =>
-        ((DataContext as MainWindowViewModel)?.ActiveTab)?.TranslatePageCommand.Execute(null);
-
-    /// <summary>
-    /// Chromium already handles Ctrl+F natively (find-in-page toolbar) when
-    /// the embedded WebView2 has keyboard focus — that shortcut is never
-    /// routed through WPF at all, since WebView2 is a separate native HWND.
-    /// This menu entry just focuses the page and forwards the same keystroke
-    /// for people who'd rather click a menu item than remember the shortcut.
-    /// </summary>
-    private void OnFindInPageClick(object sender, RoutedEventArgs e)
-    {
-        var webView = (DataContext as MainWindowViewModel)?.ActiveTab?.WebViewControl;
-        if (webView is null)
-        {
-            return;
-        }
-
-        webView.Focus();
-        System.Windows.Forms.SendKeys.SendWait("^f");
     }
 }

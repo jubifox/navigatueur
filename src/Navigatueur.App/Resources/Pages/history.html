@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Historique</title>
+<link rel="stylesheet" href="nv.css" />
+<style>
+  main {
+    width: min(820px, calc(100vw - 48px));
+    margin: 0 auto;
+    padding: 40px 0 80px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 22px;
+  }
+
+  header h1 {
+    flex: 1;
+    font-size: 24px;
+  }
+
+  .search {
+    position: relative;
+    margin-bottom: 26px;
+  }
+
+  .search .icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-3);
+  }
+
+  .search .field {
+    width: 100%;
+    height: 44px;
+    padding-left: 40px;
+    border-radius: 12px;
+    font-size: 15px;
+  }
+
+  .day h2 {
+    margin: 22px 4px 8px;
+    font-size: 13px;
+    font-family: var(--font);
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .entries {
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .entry {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 54px;
+    padding: 8px 10px 8px 16px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.12s var(--ease);
+  }
+
+  .entry + .entry {
+    border-top: 1px solid var(--border);
+  }
+
+  .entry:hover {
+    background: var(--surface-hover);
+  }
+
+  .entry time {
+    width: 44px;
+    flex: none;
+    color: var(--text-3);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry .text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .entry .title,
+  .entry .host {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .entry .host {
+    color: var(--text-3);
+    font-size: 12.5px;
+  }
+
+  .entry .remove {
+    opacity: 0;
+  }
+
+  .entry:hover .remove,
+  .entry .remove:focus-visible {
+    opacity: 1;
+  }
+</style>
+</head>
+<body data-page="history">
+  <main>
+    <header>
+      <h1>Historique</h1>
+      <button class="btn danger" id="clear">Effacer l'historique…</button>
+    </header>
+
+    <label class="search">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+      <input class="field" id="query" type="search" placeholder="Rechercher dans l'historique" aria-label="Rechercher dans l'historique" autofocus />
+    </label>
+
+    <div id="list"></div>
+  </main>
+
+  <script src="nv.js"></script>
+  <script>
+    (function () {
+      var list = document.getElementById("list");
+      var query = document.getElementById("query");
+      var debounce = 0;
+
+      function request() {
+        nv.send("nv:history.query", { query: query.value.trim(), limit: 400 });
+      }
+
+      function dayLabel(date) {
+        var today = new Date();
+        today.setHours(0, 0, 0, 0);
+        var day = new Date(date);
+        day.setHours(0, 0, 0, 0);
+        var diff = Math.round((today - day) / 86400000);
+        if (diff === 0) return "Aujourd'hui";
+        if (diff === 1) return "Hier";
+        return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: today.getFullYear() === date.getFullYear() ? undefined : "numeric" });
+      }
+
+      function render(entries) {
+        list.innerHTML = "";
+        if (!entries.length) {
+          list.innerHTML = '<p class="empty">' + (query.value.trim() ? "Aucun résultat." : "Aucune page visitée pour l'instant.") + "</p>";
+          return;
+        }
+
+        var currentDay = null;
+        var container = null;
+        entries.forEach(function (entry) {
+          var date = new Date(entry.visitedAt);
+          var label = dayLabel(date);
+          if (label !== currentDay) {
+            currentDay = label;
+            var day = document.createElement("section");
+            day.className = "day";
+            day.innerHTML = "<h2>" + nv.escape(label) + '</h2><div class="entries"></div>';
+            list.appendChild(day);
+            container = day.querySelector(".entries");
+          }
+
+          var row = document.createElement("div");
+          row.className = "entry";
+          row.tabIndex = 0;
+          row.title = entry.url;
+          row.innerHTML =
+            "<time>" + date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + "</time>" +
+            '<div class="avatar" style="background:' + nv.hue(entry.host) + '">' + nv.escape(entry.host.charAt(0)) + "</div>" +
+            '<div class="text"><span class="title">' + nv.escape(entry.title) + '</span><span class="host">' + nv.escape(entry.host) + "</span></div>" +
+            '<button class="icon-btn remove" title="Retirer de l\'historique" aria-label="Retirer de l\'historique">' +
+            '<svg class="icon" viewBox="0 0 24 24" style="width:12px;height:12px"><path d="M18 6 6 18M6 6l12 12" /></svg></button>';
+
+          function open(background) {
+            nv.send("nv:open", { url: entry.url, background: background });
+          }
+
+          row.addEventListener("click", function (event) {
+            if (event.target.closest(".remove")) return;
+            open(event.ctrlKey || event.metaKey);
+          });
+          row.addEventListener("auxclick", function (event) {
+            if (event.button === 1) open(true);
+          });
+          row.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") open(event.ctrlKey);
+          });
+          row.querySelector(".remove").addEventListener("click", function () {
+            nv.send("nv:history.delete", { url: entry.url, visitedAt: entry.visitedAt });
+            var day = row.closest(".day");
+            row.remove();
+            if (!day.querySelector(".entry")) day.remove();
+          });
+
+          container.appendChild(row);
+        });
+      }
+
+      query.addEventListener("input", function () {
+        clearTimeout(debounce);
+        debounce = setTimeout(request, 150);
+      });
+
+      document.getElementById("clear").addEventListener("click", function () {
+        if (confirm("Effacer tout l'historique de navigation ?")) {
+          nv.send("nv:action", { name: "history.clear" });
+        }
+      });
+
+      nv.on("nv:history", function (message) {
+        if ((message.query || "") === query.value.trim()) render(message.entries || []);
+      });
+
+      var requested = false;
+      nv.on("nv:state", function () {
+        if (!requested) {
+          requested = true;
+          request();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

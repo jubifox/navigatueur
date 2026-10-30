@@ -51,6 +51,15 @@ public sealed class PermissionStoreService
         Save();
     }
 
+    public int Count => _decisions.Values.Sum(perKind => perKind.Count);
+
+    /// <summary>Forgets every remembered decision (Settings → "Réinitialiser les autorisations"): sites ask again.</summary>
+    public void Clear()
+    {
+        _decisions.Clear();
+        Save();
+    }
+
     private static string? GetOrigin(string uri) =>
         Uri.TryCreate(uri, UriKind.Absolute, out var parsed) ? parsed.Host : null;
 
