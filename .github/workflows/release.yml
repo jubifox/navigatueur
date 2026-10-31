@@ -1,0 +1,96 @@
+# Publishes a GitHub release when a version tag is pushed.
+#
+#   v0.18.0       → official release, marked "latest": the built-in updater
+#                   offers it to every installed copy.
+#   v0.18.0-rc1   → pre-release: downloadable for testing, never offered by
+#                   the updater (it only looks at the latest release).
+#
+# The installer is built on Windows by packaging/windows/build-release.ps1.
+# If the repository variable WEBVIEW2_CAB_URL points to a WebView2 "Fixed
+# Version" x64 CAB, that engine is bundled into the installer; otherwise the
+# app uses the system's WebView2 runtime.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Check the tag matches the app version
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)(-.+)?$') { throw "Unexpected tag format: $tag" }
+          $version = $Matches[1]
+          $csproj = [xml](Get-Content src/Navigatueur.App/Navigatueur.App.csproj)
+          $appVersion = ($csproj.Project.PropertyGroup | Where-Object Version).Version
+          $issVersion = (Select-String -Path installer/Navigatueur.iss -Pattern '#define MyAppVersion "(.+)"').Matches[0].Groups[1].Value
+          if ($appVersion -ne $version -or $issVersion -ne $version) {
+            throw "Tag $tag, Navigatueur.App.csproj $appVersion and Navigatueur.iss $issVersion must agree."
+          }
+          $notes = "docs/releases/v$version.md"
+          if (-not (Test-Path $notes)) { throw "Missing release notes: $notes" }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "prerelease=$([bool]$Matches[2])".ToLower() >> $env:GITHUB_OUTPUT
+          "notes=$notes" >> $env:GITHUB_OUTPUT
+
+      - name: Make sure Inno Setup is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Download the WebView2 engine to bundle (optional)
+        id: runtime
+        if: vars.WEBVIEW2_CAB_URL != ''
+        shell: pwsh
+        run: |
+          $cab = Join-Path $env:RUNNER_TEMP 'webview2-fixed.cab'
+          Invoke-WebRequest '${{ vars.WEBVIEW2_CAB_URL }}' -OutFile $cab
+          "cab=$cab" >> $env:GITHUB_OUTPUT
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $arguments = @{}
+          if ('${{ steps.runtime.outputs.cab }}') { $arguments.FixedRuntimeCab = '${{ steps.runtime.outputs.cab }}' }
+          ./packaging/windows/build-release.ps1 @arguments
+
+      - name: Publish the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $installer = "publish/installer/NavigatueurSetup-$version.exe"
+          if (-not (Test-Path $installer)) { throw "Installer not found: $installer" }
+
+          $title = (Get-Content '${{ steps.version.outputs.notes }}' -TotalCount 1).TrimStart('#', ' ')
+          $flags = @()
+          if ('${{ steps.version.outputs.prerelease }}' -eq 'true') {
+            $title = "$title (préversion)"
+            $flags += '--prerelease'
+          } else {
+            $flags += '--latest'
+          }
+
+          gh release create '${{ github.ref_name }}' $installer `
+            --title $title `
+            --notes-file '${{ steps.version.outputs.notes }}' `
+            --target '${{ github.sha }}' @flags
