@@ -388,6 +388,9 @@
         </Setter>
     </Style>
 
+    <!-- Menus don't use the implicit Separator style: they look up this key instead. -->
+    <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="Separator" BasedOn="{StaticResource {x:Type Separator}}" />
+
     <!-- Thin, quiet scrollbars: a rounded thumb, no arrows, no track. -->
     <Style x:Key="ScrollThumb" TargetType="Thumb">
         <Setter Property="Template">

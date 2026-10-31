@@ -124,6 +124,21 @@ public partial class ToolbarPanel : UserControl, IShellPanel
         }), DispatcherPriority.Background);
     }
 
+    /// <summary>
+    /// Closes the "…" menu and the favorites/downloads popups; true if one was open.
+    /// The toolbar's buttons don't take keyboard focus (clicking Back must leave
+    /// it in the page), so Escape reaches the window rather than the menu: the
+    /// window forwards it here.
+    /// </summary>
+    public bool CloseOpenMenus()
+    {
+        var wasOpen = MainMenu.IsOpen || BookmarksPopup.IsOpen || DownloadsPopup.IsOpen;
+        MainMenu.IsOpen = false;
+        BookmarksPopup.IsOpen = false;
+        DownloadsPopup.IsOpen = false;
+        return wasOpen;
+    }
+
     public void ToggleDownloads()
     {
         // Ctrl+J with nothing downloaded yet: the downloads button is hidden, so anchor on the menu button.

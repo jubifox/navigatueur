@@ -214,13 +214,17 @@ try {
     $menuShot = Save-Shot 'menu-outils'
     Assert-Changed $historyShot $menuShot 'le menu « … » doit s ouvrir'
     Send-Keys @($VK_ESCAPE)
+    Start-Sleep -Milliseconds 500
+    $escShot = Save-Shot 'menu-ferme-par-echap'
+    Assert-Changed $menuShot $escShot 'Échap doit fermer le menu « … »'
     Move-Mouse $cx $cy 1600
 
     Send-Keys @($VK_F11)
     Start-Sleep -Seconds 2
-    Save-Shot 'f11-plein-ecran' | Out-Null
+    $fullShot = Save-Shot 'f11-plein-ecran'
     Move-Mouse $cx 0 900
-    Save-Shot 'f11-bord-haut' | Out-Null
+    $fullTopShot = Save-Shot 'f11-bord-haut'
+    Assert-Changed $fullShot $fullTopShot 'en plein écran, la barre doit apparaître au bord supérieur'
     Move-Mouse $cx $cy 1200
     Send-Keys @($VK_F11)
     Start-Sleep -Seconds 2

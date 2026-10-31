@@ -334,12 +334,24 @@ public partial class MainWindow : Window, IShellCommands
 
     private void OnShortcutKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Handled || !AppServices.Shortcuts.TryResolve(e, out var commandId))
+        if (e.Handled)
+        {
+            return;
+        }
+
+        if (e.Key == Key.Escape && Keyboard.Modifiers == ModifierKeys.None && _toolbar.CloseOpenMenus())
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!AppServices.Shortcuts.TryResolve(e, out var commandId))
         {
             return;
         }
 
         e.Handled = true;
+        _toolbar.CloseOpenMenus();
         Execute(commandId);
     }
 
