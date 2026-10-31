@@ -14,6 +14,7 @@ internal static class NativeMethods
     internal const int WS_CLIPCHILDREN = 0x02000000;
     internal const int WS_CLIPSIBLINGS = 0x04000000;
 
+    internal const int WM_GETMINMAXINFO = 0x0024;
     internal const int WM_NCHITTEST = 0x0084;
     internal const int WM_NCLBUTTONDOWN = 0x00A1;
     internal const int WM_ENTERSIZEMOVE = 0x0231;
@@ -54,6 +55,16 @@ internal static class NativeMethods
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MINMAXINFO
+    {
+        public POINT ptReserved;
+        public POINT ptMaxSize;
+        public POINT ptMaxPosition;
+        public POINT ptMinTrackSize;
+        public POINT ptMaxTrackSize;
     }
 
     [StructLayout(LayoutKind.Sequential)]

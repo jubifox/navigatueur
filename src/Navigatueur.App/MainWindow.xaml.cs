@@ -129,10 +129,15 @@ public partial class MainWindow : Window, IShellCommands
     private void RestoreWindowBounds()
     {
         var settings = AppServices.CurrentSettings;
-        Width = Math.Max(MinWidth, settings.WindowWidth);
-        Height = Math.Max(MinHeight, settings.WindowHeight);
 
-        if (settings.WindowLeft is { } left && settings.WindowTop is { } top)
+        // Never larger than the screen: a size saved on a big monitor (or the
+        // 1280x800 default on a small laptop) would otherwise open with its
+        // toolbar off-screen.
+        var work = SystemParameters.WorkArea;
+        Width = Math.Clamp(settings.WindowWidth, MinWidth, Math.Max(MinWidth, work.Width));
+        Height = Math.Clamp(settings.WindowHeight, MinHeight, Math.Max(MinHeight, work.Height));
+
+        if (settings.WindowLeft is { } left && settings.WindowTop is { } top && IsOnScreen(left, top, Width))
         {
             // Secondary windows cascade a little so they don't hide the primary one exactly.
             var offset = _isPrimary ? 0 : 32;
@@ -149,6 +154,13 @@ public partial class MainWindow : Window, IShellCommands
             WindowState = WindowState.Maximized;
         }
     }
+
+    /// <summary>True when a window at this position would have its top edge (where its toolbar is) on one of the screens.</summary>
+    private static bool IsOnScreen(double left, double top, double width) =>
+        top >= SystemParameters.VirtualScreenTop
+        && top < SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 48
+        && left + width > SystemParameters.VirtualScreenLeft + 100
+        && left < SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 100;
 
     /// <summary>The 3px line shown at the top of the page while it loads and the toolbar (which has its own) is hidden.</summary>
     private FrameworkElement BuildLoadingStrip()
@@ -229,6 +241,20 @@ public partial class MainWindow : Window, IShellCommands
 
         SyncLoading();
         SyncPageFullScreen();
+
+        // The previous tab's page is now hidden: if it had the keyboard, give
+        // the keyboard to the new tab's page, or shortcuts and typing would go
+        // to an invisible page (seen on the Windows CI run: Ctrl+H lost after
+        // switching tabs). Not when the user is working in a panel.
+        var newTab = _observedTab;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (newTab is not null && newTab == _tabManager.ActiveTab && IsActive &&
+                !_toolbar.IsKeyboardFocusWithin && !_tabs.IsKeyboardFocusWithin)
+            {
+                newTab.FocusPage();
+            }
+        }), DispatcherPriority.Input);
     }
 
     private void OnActiveTabPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -297,6 +323,8 @@ public partial class MainWindow : Window, IShellCommands
 
         Dispatcher.BeginInvoke(new Action(() =>
         {
+            // The address bar, not the blank page, gets the keyboard on a new tab.
+            tab.WantsFocus = false;
             _shell.RevealToolbar();
             _toolbar.FocusAddressBar();
         }), DispatcherPriority.Input);
@@ -765,6 +793,7 @@ public partial class MainWindow : Window, IShellCommands
         settings.Tabs = _tabManager.Tabs.Select(tab => new SessionTabState
         {
             Url = tab.AddressBarText,
+            Title = tab.Title,
             GroupId = tab.GroupId,
             IsPinned = tab.IsPinned,
         }).ToList();

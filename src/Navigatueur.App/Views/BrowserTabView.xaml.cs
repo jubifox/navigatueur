@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using Navigatueur.App.Services;
@@ -172,7 +173,24 @@ public partial class BrowserTabView : UserControl
         ViewModel.AttachCoreWebView2(core);
         ViewModel.AttachZoomHost(webView);
         core.Navigate(ViewModel.AddressBarText);
+
+        // Focus was asked for while this tab was still unloaded (tab switch):
+        // hand it over now — unless the user has since moved on to a panel.
+        if (ViewModel.WantsFocus)
+        {
+            ViewModel.WantsFocus = false;
+            if (ViewModel.IsActive && !IsKeyboardFocusInAnotherWindowPart())
+            {
+                webView.Focus();
+            }
+        }
     }
+
+    /// <summary>True when keyboard focus is in a panel (toolbar, tab column) — those live in their own child windows, i.e. a different PresentationSource.</summary>
+    private bool IsKeyboardFocusInAnotherWindowPart() =>
+        Keyboard.FocusedElement is DependencyObject focused
+        && PresentationSource.FromDependencyObject(focused) is { } source
+        && source != PresentationSource.FromVisual(this);
 
     // ---------------------------------------------------------- page script
 

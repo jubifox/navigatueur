@@ -77,6 +77,16 @@ function Save-Shot([string] $Name) {
     $graphics.Dispose()
     $bitmap.Dispose()
     Write-Host "  capture $([IO.Path]::GetFileName($file))"
+    return $file
+}
+
+# Two captures that should differ (a panel appeared, a page opened) but are
+# byte-identical mean nothing happened on screen.
+function Assert-Changed([string] $Before, [string] $After, [string] $Expectation) {
+    if ((Get-FileHash $Before).Hash -eq (Get-FileHash $After).Hash) {
+        $script:failures += "Rien n'a changé à l'écran : $Expectation ($([IO.Path]::GetFileName($After)))"
+        Write-Host "  ÉCHEC : $Expectation"
+    }
 }
 
 function Send-Keys([byte[]] $Keys) {
@@ -134,78 +144,83 @@ try {
     Write-Host '== Mode immersif'
     Write-Settings -Mode 'Immersive'
     $app = Start-Navigatueur
-    Save-Shot 'immersif-demarrage'
+    $start = Save-Shot 'immersif-demarrage'
 
     Move-Mouse $cx 0 900
-    Save-Shot 'bord-haut-barre-outils'
+    $top = Save-Shot 'bord-haut-barre-outils'
+    Assert-Changed $start $top 'la barre doit apparaître au bord supérieur'
 
     Move-Mouse $cx $cy 1600
-    Save-Shot 'souris-au-centre-barre-masquee'
+    $hidden = Save-Shot 'souris-au-centre-barre-masquee'
+    Assert-Changed $top $hidden 'la barre doit disparaître quand la souris s en va'
 
     Move-Mouse 0 $cy 900
-    Save-Shot 'bord-gauche-colonne-onglets'
+    $left = Save-Shot 'bord-gauche-colonne-onglets'
+    Assert-Changed $hidden $left 'la colonne doit apparaître au bord gauche'
 
     Move-Mouse 1 1 1000
-    Save-Shot 'coin-les-deux-panneaux'
+    Save-Shot 'coin-les-deux-panneaux' | Out-Null
 
     Move-Mouse $cx $cy 1600
     Assert-Alive $app 'survol des bords'
 
     Send-Keys @($VK_CONTROL, (VK 'L'))
     Start-Sleep -Milliseconds 900
-    Save-Shot 'ctrl-l-barre-adresse'
+    Save-Shot 'ctrl-l-barre-adresse' | Out-Null
 
     foreach ($ch in 'example.org'.ToCharArray()) {
         if ($ch -eq '.') { Send-Keys @(0xBE) } else { Send-Keys @((VK $ch)) }
     }
     Start-Sleep -Milliseconds 400
-    Save-Shot 'saisie-adresse-suggestions'
+    Save-Shot 'saisie-adresse-suggestions' | Out-Null
     Send-Keys @($VK_RETURN)
     Start-Sleep -Seconds 4
-    Save-Shot 'apres-entree'
+    Save-Shot 'apres-entree' | Out-Null
 
     Send-Keys @($VK_CONTROL, (VK 'T'))
     Start-Sleep -Seconds 3
-    Save-Shot 'ctrl-t-nouvel-onglet'
+    Save-Shot 'ctrl-t-nouvel-onglet' | Out-Null
     Send-Keys @($VK_ESCAPE)
     Start-Sleep -Milliseconds 800
 
     Send-Keys @($VK_CONTROL, $VK_SHIFT, (VK 'A'))
     Start-Sleep -Milliseconds 900
-    Save-Shot 'ctrl-maj-a-onglets-clavier'
+    Save-Shot 'ctrl-maj-a-onglets-clavier' | Out-Null
     Send-Keys @($VK_ESCAPE)
     Start-Sleep -Milliseconds 800
 
     Send-Keys @($VK_CONTROL, $VK_TAB)
     Start-Sleep -Seconds 2
-    Save-Shot 'ctrl-tab'
+    Save-Shot 'ctrl-tab' | Out-Null
 
     Send-Keys @($VK_CONTROL, (VK 'W'))
     Start-Sleep -Seconds 1
     Send-Keys @($VK_CONTROL, $VK_SHIFT, (VK 'T'))
     Start-Sleep -Seconds 3
-    Save-Shot 'ctrl-maj-t-onglet-restaure'
+    Save-Shot 'ctrl-maj-t-onglet-restaure' | Out-Null
 
     Send-Keys @($VK_CONTROL, $VK_OEM_COMMA)
     Start-Sleep -Seconds 4
-    Save-Shot 'parametres'
+    $settingsShot = Save-Shot 'parametres'
 
     Send-Keys @($VK_CONTROL, (VK 'H'))
     Start-Sleep -Seconds 3
-    Save-Shot 'historique'
+    $historyShot = Save-Shot 'historique'
+    Assert-Changed $settingsShot $historyShot 'Ctrl+H doit ouvrir l historique après un changement d onglet'
 
     Move-Mouse $cx 0 900
     Click-At ($W - 150) 24
     Start-Sleep -Milliseconds 900
-    Save-Shot 'menu-outils'
+    $menuShot = Save-Shot 'menu-outils'
+    Assert-Changed $historyShot $menuShot 'le menu « … » doit s ouvrir'
     Send-Keys @($VK_ESCAPE)
     Move-Mouse $cx $cy 1600
 
     Send-Keys @($VK_F11)
     Start-Sleep -Seconds 2
-    Save-Shot 'f11-plein-ecran'
+    Save-Shot 'f11-plein-ecran' | Out-Null
     Move-Mouse $cx 0 900
-    Save-Shot 'f11-bord-haut'
+    Save-Shot 'f11-bord-haut' | Out-Null
     Move-Mouse $cx $cy 1200
     Send-Keys @($VK_F11)
     Start-Sleep -Seconds 2
@@ -218,7 +233,7 @@ try {
     Write-Host '== Mode classique, colonne à droite, thème clair'
     Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light'
     $app = Start-Navigatueur
-    Save-Shot 'classique-droite-clair'
+    Save-Shot 'classique-droite-clair' | Out-Null
     Assert-Alive $app 'mode classique'
     Stop-Process -Id $app.Id -Force
     Start-Sleep -Seconds 2
@@ -232,10 +247,10 @@ try {
     $json.Interface | Add-Member -NotePropertyName SidebarAutoHide -NotePropertyValue $true -Force
     $json | ConvertTo-Json -Depth 6 | Set-Content $settingsPath -Encoding utf8
     $app = Start-Navigatueur
-    Save-Shot 'personnalise-barre-ancree'
+    Save-Shot 'personnalise-barre-ancree' | Out-Null
     Send-Keys @($VK_CONTROL, $VK_SHIFT, (VK 'N'))
     Start-Sleep -Seconds 12
-    Save-Shot 'fenetre-privee'
+    Save-Shot 'fenetre-privee' | Out-Null
     Assert-Alive $app 'fenêtre privée'
 }
 catch {

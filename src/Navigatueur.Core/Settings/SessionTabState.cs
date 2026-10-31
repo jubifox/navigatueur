@@ -10,6 +10,9 @@ public sealed class SessionTabState
 {
     public string Url { get; set; } = string.Empty;
 
+    /// <summary>Last known page title, so a restored (still unloaded) tab is recognizable in the tab column.</summary>
+    public string? Title { get; set; }
+
     public Guid? GroupId { get; set; }
 
     public bool IsPinned { get; set; }

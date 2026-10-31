@@ -149,6 +149,11 @@ public partial class TabManagerService : ObservableObject
             GroupId = record.GroupId is { } groupId && Groups.Any(g => g.Id == groupId) ? groupId : null,
         };
         tab.IsPinned = record.IsPinned;
+        if (!string.IsNullOrWhiteSpace(record.Title))
+        {
+            tab.Title = record.Title;
+        }
+
         AttachTabHandlers(tab);
         Tabs.Insert(Math.Clamp(record.Index, 0, Tabs.Count), tab);
         ActivateTab(tab);
@@ -228,6 +233,10 @@ public partial class TabManagerService : ObservableObject
             }
 
             tab.IsPinned = tabState.IsPinned;
+            if (!string.IsNullOrWhiteSpace(tabState.Title))
+            {
+                tab.Title = tabState.Title;
+            }
 
             AttachTabHandlers(tab);
             Tabs.Add(tab);

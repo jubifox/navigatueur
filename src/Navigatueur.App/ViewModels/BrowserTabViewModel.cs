@@ -133,6 +133,14 @@ public partial class BrowserTabViewModel : ObservableObject
     {
         InitialUrl = initialUrl;
         addressBarText = initialUrl;
+
+        // Until the page reports its own title: the site's name, so an unloaded
+        // (restored, background) tab isn't just another "Nouvel onglet".
+        if (!InternalPages.IsInternal(initialUrl) && UrlHelper.TryGetDisplayHost(initialUrl) is { } host)
+        {
+            title = host;
+        }
+
         _tabManager = tabManager;
 
         _onNavigationStarting = OnNavigationStarting;
@@ -330,8 +338,21 @@ public partial class BrowserTabViewModel : ObservableObject
     /// <summary>Live engine for this tab, or null while suspended — used by the internal-pages bridge to reply to the page.</summary>
     public CoreWebView2? CoreWebView => _coreWebView2;
 
-    /// <summary>Gives keyboard focus back to the page (after the address bar, a menu, the tab column…).</summary>
-    public void FocusPage() => _zoomHost?.Focus();
+    /// <summary>Set when the page should take the keyboard as soon as its engine exists (focus requested while the tab was still unloaded).</summary>
+    public bool WantsFocus { get; set; }
+
+    /// <summary>Gives keyboard focus to the page (after the address bar, a menu, a tab switch…), now or once it has loaded.</summary>
+    public void FocusPage()
+    {
+        if (_zoomHost is null)
+        {
+            WantsFocus = true;
+            return;
+        }
+
+        WantsFocus = false;
+        _zoomHost.Focus();
+    }
 
     /// <summary>The WPF-level zoom control lives on the hosting WebView2 control, not CoreWebView2 — kept separate so this ViewModel only needs the Core surface for everything else.</summary>
     public void AttachZoomHost(WebView2 webView) => _zoomHost = webView;

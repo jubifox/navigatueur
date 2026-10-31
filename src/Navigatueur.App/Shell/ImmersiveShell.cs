@@ -359,6 +359,15 @@ public sealed class ImmersiveShell
         var bottomRight = _viewport.PointToScreen(new Point(_viewport.ActualWidth, _viewport.ActualHeight));
         var scale = _viewport.ActualWidth > 0 ? (bottomRight.X - topLeft.X) / _viewport.ActualWidth : 1;
 
+        // The edges the mouse can actually reach: if part of the window lies
+        // off-screen, its edge zone moves to the screen's edge.
+        if (NativeMethods.TryGetMonitorInfo(_frame.Handle, out var monitor))
+        {
+            var screen = monitor.rcMonitor;
+            topLeft = new Point(Math.Max(topLeft.X, screen.Left), Math.Max(topLeft.Y, screen.Top));
+            bottomRight = new Point(Math.Min(bottomRight.X, screen.Right), Math.Min(bottomRight.Y, screen.Bottom));
+        }
+
         var current = _settings.Current;
         var trigger = current.EdgeTriggerSize * scale;
         var revealEnabled = current.IsEdgeRevealEnabled && overWindow;

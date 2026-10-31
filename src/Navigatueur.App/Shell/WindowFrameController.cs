@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -33,6 +34,7 @@ public sealed class WindowFrameController
         _window.SourceInitialized += (_, _) =>
         {
             Handle = new WindowInteropHelper(_window).Handle;
+            HwndSource.FromHwnd(Handle)?.AddHook(FrameWindowHook);
             ApplyRoundedCorners();
             UpdateMaximizedInset();
         };
@@ -42,6 +44,10 @@ public sealed class WindowFrameController
             FrameChanged?.Invoke(this, EventArgs.Empty);
         };
         _window.LocationChanged += (_, _) => UpdateMaximizedInset();
+
+        // A window that starts maximized gets its final size after SourceInitialized
+        // and never raises StateChanged: SizeChanged is what catches that case.
+        _window.SizeChanged += (_, _) => UpdateMaximizedInset();
         _window.DpiChanged += (_, _) => UpdateMaximizedInset();
     }
 
@@ -170,7 +176,31 @@ public sealed class WindowFrameController
     }
 
     /// <summary>
-    /// A chrome-less maximized window is sized past the monitor's work area by
+    /// Makes "maximized" mean "exactly the monitor's work area". Without a
+    /// frame, Windows otherwise maximizes the window to the frame-inflated
+    /// size: it spills a few pixels off every edge and slides under the
+    /// taskbar — which also put the immersive edge zones off-screen, out of
+    /// the mouse's reach (seen on the Windows CI run).
+    /// </summary>
+    private IntPtr FrameWindowHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == NativeMethods.WM_GETMINMAXINFO && !IsFullScreen && NativeMethods.TryGetMonitorInfo(hwnd, out var monitor))
+        {
+            var info = Marshal.PtrToStructure<NativeMethods.MINMAXINFO>(lParam);
+            var work = monitor.rcWork;
+            var bounds = monitor.rcMonitor;
+            info.ptMaxPosition.X = work.Left - bounds.Left;
+            info.ptMaxPosition.Y = work.Top - bounds.Top;
+            info.ptMaxSize.X = work.Right - work.Left;
+            info.ptMaxSize.Y = work.Bottom - work.Top;
+            Marshal.StructureToPtr(info, lParam, false);
+        }
+
+        return IntPtr.Zero;
+    }
+
+    /// <summary>
+    /// Safety net for <see cref="FrameWindowHook"/>: a chrome-less maximized window is sized past the monitor's work area by
     /// the width of the (invisible) frame it no longer draws, so its outer few
     /// pixels end up off-screen. Measure the overhang and pad the content by it.
     /// </summary>
