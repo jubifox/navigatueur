@@ -63,6 +63,18 @@ refus de s'exécuter dans une iframe.
 - **`WebView2CompositionControl`** écarté sur la foi de sa propre documentation
   (capture d'écran, DRM non affiché).
 
+## Intégration continue Windows
+
+`.github/workflows/windows.yml` compile la solution et lance les tests sur
+`windows-latest`, puis **démarre l'application réelle** et la pilote avec
+`tests/windows/smoke.ps1` : survol des bords, Ctrl+L et saisie d'une adresse,
+Ctrl+T, Ctrl+Maj+A, Ctrl+Tab, Ctrl+W puis Ctrl+Maj+T, Ctrl+, (paramètres),
+Ctrl+H, menu « … », F11, puis mode classique (colonne à droite, thème clair),
+mode personnalisé et fenêtre privée. Chaque étape produit une capture ; le job
+échoue si l'application se ferme seule ou écrit dans `crash.log`
+(`%LocalAppData%\Navigatueur`, alimenté par tout plantage non géré). Les
+captures sont publiées en artefact et sur la branche `ci/windows-captures`.
+
 ## À vérifier sous Windows
 
 Rien de ce qui suit n'a pu être exécuté : il faut Windows et WebView2. Lancer
