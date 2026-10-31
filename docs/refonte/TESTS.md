@@ -2,8 +2,8 @@
 
 ## Ce qui est vérifié automatiquement
 
-Toutes ces vérifications tournent hors Windows (l'environnement de
-développement de la refonte était Linux) :
+Ces vérifications tournent partout, y compris hors Windows ; l'intégration
+continue les relance sur Windows à chaque modification :
 
 | Vérification | Commande | Résultat |
 |---|---|---|
@@ -63,7 +63,7 @@ refus de s'exécuter dans une iframe.
 - **`WebView2CompositionControl`** écarté sur la foi de sa propre documentation
   (capture d'écran, DRM non affiché).
 
-## Intégration continue Windows
+## Application réelle sous Windows (intégration continue)
 
 `.github/workflows/windows.yml` compile la solution et lance les tests sur
 `windows-latest`, puis **démarre l'application réelle** et la pilote avec
@@ -72,20 +72,36 @@ Ctrl+T, Ctrl+Maj+A, Ctrl+Tab, Ctrl+W puis Ctrl+Maj+T, Ctrl+, (paramètres),
 Ctrl+H, menu « … », F11, puis mode classique (colonne à droite, thème clair),
 mode personnalisé et fenêtre privée. Chaque étape produit une capture ; le job
 échoue si l'application se ferme seule ou écrit dans `crash.log`
-(`%LocalAppData%\Navigatueur`, alimenté par tout plantage non géré). Les
-captures sont publiées en artefact et sur la branche `ci/windows-captures`.
+(`%LocalAppData%\Navigatueur`, alimenté par tout plantage non géré), ou si
+un changement attendu n'apparaît pas à l'écran (captures identiques avant et
+après : barre au survol du bord haut, disparition, colonne au bord gauche,
+Ctrl+H après un changement d'onglet, ouverture du menu « … », Échap qui le
+referme, barre au bord haut en plein écran). Les captures sont publiées en
+artefact et sur la branche `ci/windows-captures`.
 
-## À vérifier sous Windows
+Défauts trouvés par ces exécutions et corrigés :
 
-Rien de ce qui suit n'a pu être exécuté : il faut Windows et WebView2. Lancer
-`dotnet run --project src/Navigatueur.App` (ou une version publiée) puis
-dérouler la liste. Les points marqués ⚠ sont ceux où un comportement de Windows
-n'a pu être confirmé que par la documentation.
+| Constat sur Windows | Correction |
+|---|---|
+| Fenêtre maximisée débordant sous la barre des tâches ; zones de bord hors écran, donc pas d'apparition au survol | `WM_GETMINMAXINFO` limite l'agrandissement à la zone de travail ; zones de bord bornées à l'écran |
+| Après un changement d'onglet, le clavier restait sur la page masquée (Ctrl+H perdu) | Le focus suit l'onglet actif, y compris s'il était en veille |
+| Fenêtre privée de 1280×800 sur un écran de 768 px : barre d'outils hors écran | Taille et position de fenêtre bornées à l'écran |
+| Onglets restaurés tous nommés « Nouvel onglet » | Titres conservés dans la session ; nom du site en attendant |
+| Menu « … » insensible à Échap | Échap ferme les menus de la barre |
+| Séparateurs de menu décalés | Style de séparateur propre aux menus |
+
+## À vérifier à la main sous Windows
+
+Les points marqués ✔ CI sont déjà couverts par le scénario automatique
+ci-dessus (machine virtuelle Windows, écran 1024×768, sans GPU). Les autres
+demandent une vraie session : souris physique, plusieurs écrans, haute
+densité, son, vidéos protégées, glisser-déposer. Les points marqués ⚠ sont ceux
+où un comportement n'a pu être confirmé que par la documentation.
 
 ### Démarrage et architecture
 - [ ] Au premier lancement après mise à jour, l'écran d'accueil explique les
       bords et propose Immersif/Classique ; il ne réapparaît plus ensuite.
-- [ ] Une seule fenêtre Navigatueur (Alt+Tab, barre des tâches) ; plus de fenêtre
+- [x] ✔ CI — Une seule fenêtre Navigatueur (Alt+Tab, barre des tâches) ; plus de fenêtre
       fantôme pour les onglets ou la traînée.
 - [ ] Version publiée avec `-FixedRuntimeCab` : Paramètres → À propos indique
       « intégré à Navigatueur » ; l'app fonctionne après désinstallation du
@@ -94,8 +110,8 @@ n'a pu être confirmé que par la documentation.
       au lieu de planter.
 
 ### Interface immersive
-- [ ] Au lancement, la page occupe toute la fenêtre.
-- [ ] Souris immobile au bord supérieur ~150 ms → la barre glisse par-dessus la
+- [x] ✔ CI — Au lancement, la page occupe toute la fenêtre.
+- [x] ✔ CI — Souris immobile au bord supérieur ~150 ms → la barre glisse par-dessus la
       page ; la page ne bouge pas. ⚠ Coins arrondis et ombre visibles (calques
       enfants transparents) ; sinon, la barre doit être plate et opaque, sans
       zones noires. En cas de rendu incorrect : Paramètres → Apparence →
@@ -103,11 +119,11 @@ n'a pu être confirmé que par la documentation.
       classiques, sans calque transparent).
 - [ ] Passer rapidement par le bord sans s'arrêter → rien n'apparaît.
 - [ ] Sélectionner du texte en glissant jusqu'au bord → rien n'apparaît.
-- [ ] Quitter la barre → elle disparaît après ~0,6 s ; y revenir avant annule.
+- [x] ✔ CI — Quitter la barre → elle disparaît après ~0,6 s ; y revenir avant annule.
 - [ ] Cliquer dans la page pendant que la barre est visible → elle disparaît.
 - [ ] Taper dans la barre d'adresse puis sortir la souris → la barre reste
       jusqu'à Entrée/Échap/clic dans la page.
-- [ ] Bord gauche → colonne d'onglets ; avec la barre visible, la colonne commence
+- [x] ✔ CI — Bord gauche → colonne d'onglets ; avec la barre visible, la colonne commence
       sous la barre.
 - [ ] Paramètres → côté Droite : la colonne apparaît au bord droit, le marqueur
       d'onglet actif passe à droite.
@@ -117,22 +133,22 @@ n'a pu être confirmé que par la documentation.
       panneau n'apparaît aux bords ; Échap rétablit tout.
 - [ ] Fenêtre restaurée : redimensionnement possible par les quatre bords,
       y compris quand la barre ou la colonne est affichée. ⚠
-- [ ] Fenêtre maximisée : rien ne déborde de l'écran.
+- [x] ✔ CI — Fenêtre maximisée : rien ne déborde de l'écran.
 - [ ] Glisser la barre (zone vide) déplace la fenêtre ; double-clic → agrandir.
 
 ### Modes
-- [ ] Classique : barre et colonne toujours visibles, la page est à côté (pas
+- [x] ✔ CI — Classique : barre et colonne toujours visibles, la page est à côté (pas
       dessous). Bouton « colonne » de la barre : bascule ancrée/automatique.
 - [ ] Personnalisé : barre ancrée + colonne automatique, et l'inverse.
 - [ ] F11 en mode classique : plein écran immersif ; F11 à nouveau : retour.
 
 ### Clavier (interface masquée, focus dans la page)
 - [ ] Ctrl+T, Ctrl+W, Ctrl+Tab, Ctrl+Maj+Tab, Ctrl+1…9.
-- [ ] Ctrl+L : la barre apparaît, adresse sélectionnée ; Échap : retour à la page.
+- [x] ✔ CI — Ctrl+L : la barre apparaît, adresse sélectionnée ; Échap : retour à la page.
 - [ ] Ctrl+R / F5, Alt+←/→, Ctrl+D (l'étoile s'allume, la barre s'affiche
       brièvement), Ctrl+H, Ctrl+J, Ctrl+,.
-- [ ] Ctrl+Maj+T rouvre le dernier onglet fermé à sa place.
-- [ ] Ctrl+Maj+A : la colonne apparaît, ↑/↓ parcourent, Entrée active, Suppr
+- [x] ✔ CI — Ctrl+Maj+T rouvre le dernier onglet fermé à sa place.
+- [x] ✔ CI — Ctrl+Maj+A : la colonne apparaît, ↑/↓ parcourent, Entrée active, Suppr
       ferme, Échap referme.
 - [ ] Paramètres → Raccourcis : remplacer Ctrl+T par une autre combinaison,
       l'utiliser, rétablir.
@@ -162,7 +178,7 @@ n'a pu être confirmé que par la documentation.
 - [ ] Téléchargements, Enregistrer sous, Traduire, Rechercher dans la page,
       Picture-in-Picture, zoom.
 - [ ] Extensions : installation recommandée, activation, « Ouvrir ».
-- [ ] Fenêtre privée (Ctrl+Maj+N) : teinte violette, badge « Privé », rien dans
+- [x] ✔ CI — Fenêtre privée (Ctrl+Maj+N) : teinte violette, badge « Privé », rien dans
       l'historique, profil supprimé à la fermeture.
 - [ ] Nouvelle fenêtre (Ctrl+N), mini-lecteur musique et icône de notification.
 - [ ] Mises à jour : point sur le bouton « … » et entrée de menu.
