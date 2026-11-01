@@ -1,0 +1,85 @@
+{
+  // Extensions that are part of Navigatueur itself: shipped in the installer
+  // (packaging\windows\build-release.ps1 puts the packages next to the app),
+  // installed automatically at startup, never removable — only switchable off.
+  //
+  // Each package is the file its authors published (url), pinned by its SHA-256:
+  // nothing that doesn't match is ever shipped or installed. Decentraleyes is
+  // published as a .crx (a header in front of the zip), unpacked the same way.
+  // Licenses: THIRD-PARTY-NOTICES.txt.
+  //
+  // To update one: change version, package, url and sha256 together.
+  "extensions": [
+    {
+      "id": "ublock-origin",
+      "name": "uBlock Origin",
+      "description": "Bloque les publicités, les pisteurs et les sites malveillants.",
+      "version": "1.75.0",
+      "package": "ublock-origin-1.75.0.zip",
+      "url": "https://github.com/gorhill/uBlock/releases/download/1.75.0/uBlock0_1.75.0.chromium.zip",
+      "sha256": "393cf95709d1074d4022970e9014e434395c53a822387f1e25f43be97cf4b582",
+      "folder": "uBlock Origin",
+      "matches": [ "uBlock Origin" ],
+      "source": "https://github.com/gorhill/uBlock/releases/tag/1.75.0"
+    },
+    {
+      "id": "consent-o-matic",
+      "name": "Consent-O-Matic",
+      "description": "Répond automatiquement aux bandeaux de consentement aux cookies.",
+      "version": "1.1.5",
+      "package": "consent-o-matic-1.1.5.zip",
+      "url": "https://github.com/cavi-au/Consent-O-Matic/releases/download/v1.1.5/consent-o-matic-v1.1.5-unpacked-release-chromium.zip",
+      "sha256": "37cec881fc5f53c84419e39d6a01cb79ff0b06b8df556219ac5c74887ba1473a",
+      "folder": "Consent-O-Matic",
+      "matches": [ "Consent-O-Matic" ],
+      "source": "https://github.com/cavi-au/Consent-O-Matic/releases/tag/v1.1.5"
+    },
+    {
+      "id": "sponsorblock",
+      "name": "SponsorBlock",
+      "description": "Passe les segments sponsorisés des vidéos YouTube.",
+      "version": "6.1.7",
+      "package": "sponsorblock-6.1.7.zip",
+      "url": "https://github.com/ajayyy/SponsorBlock/releases/download/6.1.7/ChromeExtension.zip",
+      "sha256": "7c8e3dc8b5e560b480ae8efdf28f4f1101fce0cc32434562a336a89e4962eda3",
+      "folder": "SponsorBlock",
+      "matches": [ "SponsorBlock" ],
+      "source": "https://github.com/ajayyy/SponsorBlock/releases/tag/6.1.7"
+    },
+    {
+      "id": "decentraleyes",
+      "name": "Decentraleyes",
+      "description": "Sert localement les bibliothèques courantes des sites, contre le pistage par les CDN.",
+      "version": "2.0.4",
+      "package": "decentraleyes-2.0.4.crx",
+      "url": "https://github.com/Synzvato/decentraleyes/releases/download/v2.0.4/Decentraleyes.v2.0.4-chromium.crx",
+      "sha256": "b884ad4b40036b9acb93aef97e01826dbde96b8e8106c21c380086b2ee70e830",
+      "folder": "Decentraleyes",
+      "matches": [ "Decentraleyes" ],
+      "source": "https://github.com/Synzvato/decentraleyes/releases/tag/v2.0.4"
+    },
+    {
+      "id": "violentmonkey",
+      "name": "Violentmonkey",
+      "description": "Gestionnaire de scripts utilisateur, pour personnaliser les sites.",
+      "version": "2.50.0",
+      "package": "violentmonkey-2.50.0.zip",
+      "url": "https://github.com/violentmonkey/violentmonkey/releases/download/v2.50.0/Violentmonkey-mv3-v2.50.0.zip",
+      "sha256": "72f1de5a2edc4bc3cd3b3ca06c2b3631cdde4f06f8ed9e8b2b565bf77258b36c",
+      "folder": "Violentmonkey",
+      "matches": [ "Violentmonkey" ],
+      "source": "https://github.com/violentmonkey/violentmonkey/releases/tag/v2.50.0"
+    },
+    {
+      // Its license forbids redistribution: installed on the user's machine from
+      // the Chrome Web Store, verified by its CRX signature (see CrxPackage).
+      "id": "betterttv",
+      "name": "BetterTTV",
+      "description": "Améliore Twitch et YouTube : émoticônes, chat, lecteur. Réglages dans le chat Twitch.",
+      "webStoreId": "ajopnjidmegmdimjlfnijceegpefgped",
+      "folder": "BetterTTV",
+      "matches": [ "BetterTTV" ],
+      "source": "https://chromewebstore.google.com/detail/ajopnjidmegmdimjlfnijceegpefgped"
+    }
+  ]
+}

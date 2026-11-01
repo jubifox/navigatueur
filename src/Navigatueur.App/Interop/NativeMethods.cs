@@ -41,6 +41,12 @@ internal static class NativeMethods
     internal const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const int DWMWCP_ROUND = 2;
 
+    internal const uint ABM_GETAUTOHIDEBAREX = 0x0000000B;
+    internal const uint ABE_LEFT = 0;
+    internal const uint ABE_TOP = 1;
+    internal const uint ABE_RIGHT = 2;
+    internal const uint ABE_BOTTOM = 3;
+
     [StructLayout(LayoutKind.Sequential)]
     internal struct POINT
     {
@@ -74,6 +80,17 @@ internal static class NativeMethods
         public RECT rcMonitor;
         public RECT rcWork;
         public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct APPBARDATA
+    {
+        public int cbSize;
+        public IntPtr hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;
+        public RECT rc;
+        public IntPtr lParam;
     }
 
     [DllImport("user32.dll")]
@@ -113,6 +130,16 @@ internal static class NativeMethods
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    [DllImport("shell32.dll")]
+    internal static extern UIntPtr SHAppBarMessage(uint message, ref APPBARDATA data);
+
+    /// <summary>True when an auto-hiding app bar (the taskbar, in practice) sits on <paramref name="edge"/> of the monitor whose bounds are <paramref name="monitor"/>.</summary>
+    internal static bool HasAutoHideAppBar(uint edge, RECT monitor)
+    {
+        var data = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>(), uEdge = edge, rc = monitor };
+        return SHAppBarMessage(ABM_GETAUTOHIDEBAREX, ref data) != UIntPtr.Zero;
+    }
 
     internal static bool IsAnyMouseButtonDown() =>
         (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0

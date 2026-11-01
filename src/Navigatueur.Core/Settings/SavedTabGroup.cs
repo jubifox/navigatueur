@@ -15,5 +15,8 @@ public sealed class SavedTabGroup
 
     public string ColorHex { get; set; } = string.Empty;
 
+    /// <summary>Glyph shown inside the group's folder icon — one of GroupIcons' keys, empty for a plain folder.</summary>
+    public string Icon { get; set; } = string.Empty;
+
     public List<string> Urls { get; set; } = new();
 }

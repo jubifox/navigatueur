@@ -26,6 +26,7 @@
     "interface.revealDelay": "interface.revealDelay",
     "interface.hideDelay": "interface.hideDelay",
     "interface.triggerSize": "interface.triggerSize",
+    "interface.sidebarTriggerSize": "interface.sidebarTriggerSize",
     "interface.animations": "interface.animations",
     "interface.panelEffects": "interface.panelEffects",
     "startup.behavior": "navigation.startup",
@@ -115,8 +116,28 @@
       if (name === "permissions.clear") toast("Autorisations réinitialisées");
       if (name === "shortcuts.resetAll") toast("Raccourcis par défaut rétablis");
       if (name === "update.check") toast("Recherche de mises à jour…");
+      if (name === "codec.hevc.store") toast("Ouverture du Microsoft Store…");
     });
   });
+
+  // What the engine can decode on this PC. Twitch's 2K lives (Enhanced
+  // Broadcasting) are HEVC, which Windows only decodes with its HEVC Video
+  // Extensions codec; without it Twitch falls back to 1080p.
+  (function renderVideoSupport() {
+    function supports(type) {
+      return !!(window.MediaSource && MediaSource.isTypeSupported(type));
+    }
+    var vp9 = supports('video/webm; codecs="vp09.00.51.08"');
+    var av1 = supports('video/mp4; codecs="av01.0.12M.08"');
+    var hevc = supports('video/mp4; codecs="hvc1.1.6.L150.90"');
+    $("#vp9Text").textContent = vp9 || av1
+      ? "Pris en charge (" + [vp9 && "VP9", av1 && "AV1"].filter(Boolean).join(", ") + ") : YouTube et la plupart des sites."
+      : "Non pris en charge par le moteur sur ce PC.";
+    $("#hevcText").textContent = hevc
+      ? "Pris en charge : les lives Twitch en 2K sont lisibles."
+      : "Codec HEVC de Windows absent : Twitch s'arrête à 1080p. Installez « Extensions vidéo HEVC » (Microsoft Store), puis redémarrez Navigatueur.";
+    $("#hevcStore").hidden = hevc;
+  })();
 
   $all(".mode[data-mode]").forEach(function (button) {
     button.addEventListener("click", function () {

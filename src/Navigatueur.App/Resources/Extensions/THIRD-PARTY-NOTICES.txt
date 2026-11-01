@@ -1,0 +1,96 @@
+Extensions intégrées à Navigatueur — mentions et licences
+==========================================================
+
+Navigatueur redistribue, sans modification, les extensions ci-dessous (fichiers
+dans le dossier Extensions de l'application). Chacune reste sous sa propre
+licence ; le code source correspondant à chaque version est disponible à
+l'adresse indiquée.
+
+
+uBlock Origin 1.75.0
+--------------------
+Copyright (C) Raymond Hill et les contributeurs de uBlock Origin.
+Licence : GNU General Public License, version 3 (texte complet inclus dans
+l'extension : uBlock0.chromium/LICENSE.txt, et https://www.gnu.org/licenses/gpl-3.0.html).
+Code source : https://github.com/gorhill/uBlock/releases/tag/1.75.0
+
+
+SponsorBlock 6.1.7
+------------------
+Copyright (C) Ajay Ramachandran et les contributeurs de SponsorBlock.
+Licence : GNU General Public License, version 3
+(https://www.gnu.org/licenses/gpl-3.0.html).
+Code source : https://github.com/ajayyy/SponsorBlock/releases/tag/6.1.7
+
+
+Decentraleyes 2.0.4
+-------------------
+Copyright (C) Thomas Rientjes et les contributeurs de Decentraleyes.
+Licence : Mozilla Public License, version 2.0 (texte complet inclus dans
+l'extension : LICENSE.txt, et https://www.mozilla.org/MPL/2.0/).
+Code source : https://github.com/Synzvato/decentraleyes/releases/tag/v2.0.4
+
+
+Consent-O-Matic 1.1.5
+---------------------
+Code source : https://github.com/cavi-au/Consent-O-Matic/releases/tag/v1.1.5
+
+MIT License
+
+Copyright (c) 2019,2020,2021,2022 Janus Bager Kristensen and Rolf Bagge,
+CAVI - Center for Advanced Visualization and Interaction, Aarhus University
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+Violentmonkey 2.50.0
+--------------------
+Code source : https://github.com/violentmonkey/violentmonkey/releases/tag/v2.50.0
+
+MIT License
+
+Copyright (c) 2017 Gerald
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+BetterTTV
+---------
+N'est PAS redistribué par Navigatueur : sa licence l'interdit sans
+autorisation de NightDev, LLC. Navigatueur l'installe sur votre ordinateur
+directement depuis le Chrome Web Store
+(https://chromewebstore.google.com/detail/ajopnjidmegmdimjlfnijceegpefgped),
+après avoir vérifié la signature du paquet. Il reste soumis aux conditions de
+NightDev, LLC (https://github.com/night/betterttv/blob/master/LICENSE).

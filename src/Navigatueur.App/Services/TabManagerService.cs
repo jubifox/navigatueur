@@ -217,7 +217,7 @@ public partial class TabManagerService : ObservableObject
         var groupIdMap = new Dictionary<Guid, TabGroup>();
         foreach (var groupState in groupStates)
         {
-            var group = CreateGroup(groupState.Name, groupState.ColorHex);
+            var group = CreateGroup(groupState.Name, groupState.ColorHex, groupState.Icon);
             group.IsCollapsed = groupState.IsCollapsed;
             groupIdMap[groupState.Id] = group;
         }
@@ -302,9 +302,9 @@ public partial class TabManagerService : ObservableObject
         }
     }
 
-    public TabGroup CreateGroup(string name, string colorHex)
+    public TabGroup CreateGroup(string name, string colorHex, string? icon = null)
     {
-        var group = new TabGroup(name, colorHex);
+        var group = new TabGroup(name, colorHex, icon);
         group.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(TabGroup.IsCollapsed))
@@ -345,6 +345,13 @@ public partial class TabManagerService : ObservableObject
         group.ContextMenuItems.Add(new TabContextMenuEntry(
             "Renommer...",
             new RelayCommand(() => group.IsEditingName = true)));
+
+        // Opened once the context menu has finished closing: while it still holds the
+        // mouse capture, handing it back would immediately close the picker again.
+        group.ContextMenuItems.Add(new TabContextMenuEntry(
+            "Changer l'icône...",
+            new RelayCommand(() => Dispatcher.CurrentDispatcher.BeginInvoke(
+                new Action(() => group.IsPickingIcon = true), DispatcherPriority.ApplicationIdle))));
 
         foreach (var (name, hex) in GroupColorChoices)
         {
@@ -460,6 +467,43 @@ public partial class TabManagerService : ObservableObject
         RebuildTabStripItems();
     }
 
+    /// <summary>
+    /// Drag-and-drop of a whole group: moves <paramref name="source"/> (with all
+    /// its tabs, which follow their group in the strip) just before or after
+    /// <paramref name="target"/>. Groups always sit below ungrouped tabs, so they
+    /// only ever reorder among themselves; the order is what the session saves.
+    /// </summary>
+    public void MoveGroup(TabGroup source, TabGroup target, bool after)
+    {
+        var from = Groups.IndexOf(source);
+        if (ListReorder.MoveDestination(from, Groups.IndexOf(target), after, Groups.Count) is { } destination)
+        {
+            Groups.Move(from, destination);
+        }
+    }
+
+    /// <summary>A tab dropped on a group's header joins that group, at its end.</summary>
+    public void MoveTabToGroup(BrowserTabViewModel tab, TabGroup group)
+    {
+        if (!Tabs.Contains(tab) || !Groups.Contains(group))
+        {
+            return;
+        }
+
+        tab.IsPinned = false;
+        tab.GroupId = group.Id;
+
+        var lastMember = Tabs.LastOrDefault(t => t != tab && t.GroupId == group.Id);
+        if (lastMember is not null)
+        {
+            Tabs.Remove(tab);
+            Tabs.Insert(Tabs.IndexOf(lastMember) + 1, tab);
+        }
+
+        group.IsCollapsed = false;
+        RebuildTabStripItems();
+    }
+
     /// <summary>Persists <paramref name="group"/> and its current tabs' URLs so it can be reopened later via <see cref="OpenSavedGroup"/>.</summary>
     public void SaveGroup(TabGroup group)
     {
@@ -475,7 +519,7 @@ public partial class TabManagerService : ObservableObject
             SavedGroups.Remove(existing);
         }
 
-        SavedGroups.Add(new SavedTabGroup { Id = group.Id, Name = group.Name, ColorHex = group.ColorHex, Urls = urls });
+        SavedGroups.Add(new SavedTabGroup { Id = group.Id, Name = group.Name, ColorHex = group.ColorHex, Icon = group.Icon, Urls = urls });
         PersistSavedGroups();
     }
 
@@ -488,7 +532,7 @@ public partial class TabManagerService : ObservableObject
     /// <summary>Reopens a saved group as a new live group, all tabs suspended except the first — same lazy-load approach as session restore.</summary>
     public void OpenSavedGroup(SavedTabGroup saved)
     {
-        var group = CreateGroup(saved.Name, saved.ColorHex);
+        var group = CreateGroup(saved.Name, saved.ColorHex, saved.Icon);
 
         BrowserTabViewModel? firstTab = null;
         foreach (var url in saved.Urls)

@@ -76,8 +76,15 @@ public sealed class InterfaceSettings
     /// <summary>How long a revealed panel lingers once the mouse has left it.</summary>
     public int HideDelayMilliseconds { get; set; } = 600;
 
-    /// <summary>Thickness, in device-independent pixels, of the band along an edge that counts as "at the edge".</summary>
+    /// <summary>Thickness, in device-independent pixels, of the band along the top edge that counts as "at the edge" (toolbar).</summary>
     public int EdgeTriggerSize { get; set; } = 6;
+
+    /// <summary>
+    /// Same, for the side edge that reveals the tab column. Kept separate and
+    /// wider than the top one: the side of a page rarely holds anything
+    /// clickable, while the top band overlaps every site's own header.
+    /// </summary>
+    public int SidebarEdgeTriggerSize { get; set; } = 18;
 
     public bool AreAnimationsEnabled { get; set; } = true;
 
@@ -141,5 +148,6 @@ public sealed class InterfaceSettings
         RevealDelayMilliseconds = Math.Clamp(RevealDelayMilliseconds, 0, MaxRevealDelayMilliseconds);
         HideDelayMilliseconds = Math.Clamp(HideDelayMilliseconds, 0, MaxHideDelayMilliseconds);
         EdgeTriggerSize = Math.Clamp(EdgeTriggerSize, MinEdgeTriggerSize, MaxEdgeTriggerSize);
+        SidebarEdgeTriggerSize = Math.Clamp(SidebarEdgeTriggerSize, MinEdgeTriggerSize, MaxEdgeTriggerSize);
     }
 }

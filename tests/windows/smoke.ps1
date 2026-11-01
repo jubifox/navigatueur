@@ -52,13 +52,18 @@ $script:failures = @()
 
 function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme = 'Dark') {
     New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
+    $videoGroup = '6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b'
     $settings = [ordered]@{
         WasMaximized   = $true
         Tabs           = @(
             [ordered]@{ Url = 'https://example.com/'; IsPinned = $false },
             [ordered]@{ Url = 'https://en.wikipedia.org/wiki/Web_browser'; IsPinned = $false },
-            [ordered]@{ Url = 'https://navigatueur.home/index.html'; IsPinned = $false }
+            [ordered]@{ Url = 'https://navigatueur.home/index.html'; IsPinned = $false },
+            [ordered]@{ Url = 'https://www.youtube.com/'; IsPinned = $false; GroupId = $videoGroup },
+            [ordered]@{ Url = 'https://www.twitch.tv/'; IsPinned = $false; GroupId = $videoGroup }
         )
+        # A group with a glyph in its folder icon, so the captures show one.
+        Groups         = @([ordered]@{ Id = $videoGroup; Name = 'Vidéo'; ColorHex = '#E5484D'; IsCollapsed = $false; Icon = 'Play' })
         ActiveTabIndex = 1
         ThemeMode      = $Theme
         SearchEngine   = 'DuckDuckGo'
@@ -154,9 +159,10 @@ try {
     $hidden = Save-Shot 'souris-au-centre-barre-masquee'
     Assert-Changed $top $hidden 'la barre doit disparaître quand la souris s en va'
 
-    Move-Mouse 0 $cy 900
+    # 12 px from the edge: inside the tab column's (wider) trigger zone, outside the toolbar's.
+    Move-Mouse 12 $cy 900
     $left = Save-Shot 'bord-gauche-colonne-onglets'
-    Assert-Changed $hidden $left 'la colonne doit apparaître au bord gauche'
+    Assert-Changed $hidden $left 'la colonne doit apparaître à 12 px du bord gauche'
 
     Move-Mouse 1 1 1000
     Save-Shot 'coin-les-deux-panneaux' | Out-Null

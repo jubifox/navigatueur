@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Navigatueur.App</RootNamespace>
     <AssemblyName>Navigatueur</AssemblyName>
-    <Version>0.18.0</Version>
+    <Version>0.19.0</Version>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -40,6 +40,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\AdBlock\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\Extensions\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\Phishing\**\*">

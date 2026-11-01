@@ -214,50 +214,100 @@
         </DataTemplate>
 
         <DataTemplate DataType="{x:Type models:TabGroup}">
-            <Button Style="{StaticResource TabRow}" Margin="8,6,8,1"
-                    Command="{Binding DataContext.ToggleGroupCollapsedCommand, ElementName=PanelRoot}"
-                    CommandParameter="{Binding}">
-                <Button.ContextMenu>
-                    <ContextMenu ItemsSource="{Binding ContextMenuItems}">
-                        <ContextMenu.ItemContainerStyle>
-                            <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
-                                <Setter Property="Header" Value="{Binding Header}" />
-                                <Setter Property="Command" Value="{Binding Command}" />
-                            </Style>
-                        </ContextMenu.ItemContainerStyle>
-                    </ContextMenu>
-                </Button.ContextMenu>
-                <DockPanel Height="30" Margin="10,0,8,0">
-                    <Path DockPanel.Dock="Left" Data="{StaticResource IconChevronDown}" Width="12" Height="12" Margin="0,0,8,0"
-                          RenderTransformOrigin="0.5,0.5">
-                        <Path.Style>
-                            <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
-                                <Setter Property="Stroke" Value="{DynamicResource TextTertiaryBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
-                                        <Setter Property="RenderTransform">
-                                            <Setter.Value>
-                                                <RotateTransform Angle="-90" />
-                                            </Setter.Value>
-                                        </Setter>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Path.Style>
-                    </Path>
-                    <Ellipse DockPanel.Dock="Left" Width="8" Height="8" Margin="0,0,8,0" Fill="{Binding ColorHex}" />
-                    <Grid>
-                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
-                                   Visibility="{Binding IsEditingName, Converter={StaticResource InverseBoolToVis}}" />
-                        <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Padding="6,2"
-                                 Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVis}}"
-                                 PreviewMouseLeftButtonDown="OnGroupNameEditPreviewMouseDown"
-                                 KeyDown="OnGroupNameEditKeyDown" LostFocus="OnGroupNameEditLostFocus"
-                                 IsVisibleChanged="OnGroupNameEditIsVisibleChanged" />
-                    </Grid>
-                </DockPanel>
-            </Button>
+            <Grid>
+                <Button x:Name="GroupHeader" Style="{StaticResource TabRow}" Margin="8,6,8,1"
+                        Command="{Binding DataContext.ToggleGroupCollapsedCommand, ElementName=PanelRoot}"
+                        CommandParameter="{Binding}"
+                        ToolTip="Glisser pour déplacer le groupe"
+                        PreviewMouseLeftButtonDown="OnGroupPreviewMouseLeftButtonDown"
+                        PreviewMouseMove="OnGroupPreviewMouseMove"
+                        DragOver="OnGroupDragOver" DragLeave="OnTabDragLeave" Drop="OnGroupDrop">
+                    <Button.ContextMenu>
+                        <ContextMenu ItemsSource="{Binding ContextMenuItems}">
+                            <ContextMenu.ItemContainerStyle>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                    <Setter Property="Header" Value="{Binding Header}" />
+                                    <Setter Property="Command" Value="{Binding Command}" />
+                                </Style>
+                            </ContextMenu.ItemContainerStyle>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                    <DockPanel Height="30" Margin="10,0,8,0">
+                        <Path DockPanel.Dock="Left" Data="{StaticResource IconChevronDown}" Width="12" Height="12" Margin="0,0,8,0"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Path.Style>
+                                <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
+                                    <Setter Property="Stroke" Value="{DynamicResource TextTertiaryBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsCollapsed}" Value="True">
+                                            <Setter Property="RenderTransform">
+                                                <Setter.Value>
+                                                    <RotateTransform Angle="-90" />
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
+                        <!-- Folder icon in the group's color, with the chosen glyph (play, note…) inside. -->
+                        <Grid DockPanel.Dock="Left" Width="20" Height="20" Margin="0,0,8,0">
+                            <Path Data="{StaticResource IconFolder}" Stretch="Uniform" Fill="{Binding ColorHex}" Opacity="0.22" />
+                            <Path Data="{StaticResource IconFolder}" Style="{StaticResource VectorIcon}" Width="20" Height="20"
+                                  StrokeThickness="1.6" Stroke="{Binding ColorHex}" />
+                            <Path Data="{Binding Icon, Converter={StaticResource GroupGlyph}}" Style="{StaticResource VectorIcon}"
+                                  Width="11" Height="9" StrokeThickness="1.5" Stroke="{Binding ColorHex}" Margin="0,3,0,0" />
+                        </Grid>
+                        <Grid>
+                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Visibility="{Binding IsEditingName, Converter={StaticResource InverseBoolToVis}}" />
+                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Padding="6,2"
+                                     Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVis}}"
+                                     PreviewMouseLeftButtonDown="OnGroupNameEditPreviewMouseDown"
+                                     KeyDown="OnGroupNameEditKeyDown" LostFocus="OnGroupNameEditLostFocus"
+                                     IsVisibleChanged="OnGroupNameEditIsVisibleChanged" />
+                        </Grid>
+                    </DockPanel>
+                </Button>
+
+                <!-- Icon picker ("Changer l'icône…" in the group's menu). -->
+                <Popup IsOpen="{Binding IsPickingIcon, Mode=TwoWay}" PlacementTarget="{Binding ElementName=GroupHeader}"
+                       Placement="Bottom" HorizontalOffset="8" StaysOpen="False" AllowsTransparency="True" PopupAnimation="Fade">
+                    <Border Style="{StaticResource PopupCard}" Width="244">
+                        <StackPanel>
+                            <TextBlock Text="Icône du groupe" FontWeight="SemiBold" Margin="6,2,6,8" />
+                            <ItemsControl ItemsSource="{x:Static models:TabGroup.IconChoices}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Width="44" Height="40" Margin="1" ToolTip="{Binding Label}"
+                                                Command="{Binding DataContext.ChooseIconCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding Key}">
+                                            <Grid Width="26" Height="26">
+                                                <Path Data="{StaticResource IconFolder}" Stretch="Uniform"
+                                                      Fill="{Binding DataContext.ColorHex, RelativeSource={RelativeSource AncestorType=ItemsControl}}" Opacity="0.22" />
+                                                <Path Data="{StaticResource IconFolder}" Style="{StaticResource VectorIcon}" Width="26" Height="26"
+                                                      StrokeThickness="1.6" Stroke="{Binding DataContext.ColorHex, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                                <Path Data="{Binding Key, Converter={StaticResource GroupGlyph}}" Style="{StaticResource VectorIcon}"
+                                                      Width="14" Height="12" StrokeThickness="1.6" Margin="0,4,0,0"
+                                                      Stroke="{Binding DataContext.ColorHex, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Button Content="Dossier simple, sans icône" Style="{StaticResource SecondaryButton}" Padding="10,5" Margin="1,8,1,2"
+                                    HorizontalAlignment="Stretch" FontSize="12"
+                                    Command="{Binding ChooseIconCommand}" CommandParameter="" />
+                        </StackPanel>
+                    </Border>
+                </Popup>
+            </Grid>
         </DataTemplate>
     </UserControl.Resources>
 

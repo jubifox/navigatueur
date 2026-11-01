@@ -23,6 +23,9 @@ public partial class App : Application
         base.OnStartup(e);
         LoadAppCursor();
 
+        // Off the UI thread, while the window builds; the engine waits for it (see StartupWork).
+        WebView2EnvironmentService.StartupWork = Task.Run(BuiltInExtensions.UpgradeInstalledCopies);
+
         // Not App.xaml's StartupUri anymore: that activates MainWindow via
         // XAML/reflection, which requires a genuine zero-argument CLR
         // constructor — MainWindow's constructor now takes optional

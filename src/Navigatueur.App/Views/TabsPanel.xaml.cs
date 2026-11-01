@@ -87,7 +87,7 @@ public partial class TabsPanel : UserControl, IShellPanel
         || _isResizing
         || _lastContextMenu is { IsOpen: true }
         || SavedGroupsMenu.IsOpen
-        || (ViewModel?.TabManager.Groups.Any(g => g.IsEditingName) ?? false);
+        || (ViewModel?.TabManager.Groups.Any(g => g.IsEditingName || g.IsPickingIcon) ?? false);
 
     public void ApplyChrome(bool floating, bool effects, PanelSide side, double shadowSize)
     {
@@ -327,17 +327,155 @@ public partial class TabsPanel : UserControl, IShellPanel
 
     private void OnTabDragOver(object sender, DragEventArgs e)
     {
-        if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } row ||
-            e.Data.GetData(typeof(BrowserTabViewModel)) is not BrowserTabViewModel source ||
-            source == target)
+        if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } row)
         {
-            e.Effects = DragDropEffects.None;
-            e.Handled = true;
+            RefuseDrop(e);
             return;
         }
 
-        SetDropPosition(row, ResolveDropPosition(row, e));
+        string? position = null;
+        if (e.Data.GetData(typeof(BrowserTabViewModel)) is BrowserTabViewModel source && source != target)
+        {
+            position = ResolveDropPosition(row, e);
+        }
+        else if (e.Data.GetData(typeof(TabGroup)) is TabGroup group)
+        {
+            position = ResolveGroupDropOnTab(group, target);
+        }
+
+        if (position is null)
+        {
+            SetDropPosition(row, null);
+            RefuseDrop(e);
+            return;
+        }
+
+        SetDropPosition(row, position);
         e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private static void RefuseDrop(DragEventArgs e)
+    {
+        e.Effects = DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// A dragged group can land after another group by being dropped on that
+    /// group's last tab — the drop line then sits right where it will go.
+    /// Anywhere else among the tabs would be ambiguous, so it's refused.
+    /// </summary>
+    private string? ResolveGroupDropOnTab(TabGroup dragged, BrowserTabViewModel target)
+    {
+        if (ViewModel is not { } viewModel || target.IsPinned || target.GroupId is not { } groupId || groupId == dragged.Id)
+        {
+            return null;
+        }
+
+        var lastMember = viewModel.TabManager.Tabs.LastOrDefault(t => !t.IsPinned && t.GroupId == groupId);
+        return lastMember == target ? "After" : null;
+    }
+
+    // ------------------------------------------------------- group dragging
+
+    private Point? _groupDragStart;
+    private TabGroup? _groupDragSource;
+
+    private void OnGroupPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        _groupDragStart = e.GetPosition(this);
+        _groupDragSource = (sender as FrameworkElement)?.DataContext as TabGroup;
+    }
+
+    private void OnGroupPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || _groupDragStart is not { } start || _groupDragSource is null ||
+            _groupDragSource.IsEditingName)
+        {
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (Math.Abs(current.X - start.X) < SystemParameters.MinimumHorizontalDragDistance &&
+            Math.Abs(current.Y - start.Y) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        var source = _groupDragSource;
+        _groupDragStart = null;
+        _groupDragSource = null;
+        _isDragging = true;
+        try
+        {
+            DragDrop.DoDragDrop((DependencyObject)sender, new DataObject(typeof(TabGroup), source), DragDropEffects.Move);
+        }
+        finally
+        {
+            _isDragging = false;
+        }
+    }
+
+    /// <summary>
+    /// Over a group header: a dragged tab joins the group ("Into"); a dragged
+    /// group goes before it — or after it, in the lower half of a collapsed
+    /// group (an expanded one shows its tabs below: drop on its last tab instead).
+    /// </summary>
+    private string? ResolveDropOnGroupHeader(FrameworkElement header, TabGroup target, DragEventArgs e)
+    {
+        if (e.Data.GetData(typeof(BrowserTabViewModel)) is BrowserTabViewModel tab)
+        {
+            return tab.GroupId == target.Id ? null : "Into";
+        }
+
+        if (e.Data.GetData(typeof(TabGroup)) is TabGroup group && group != target)
+        {
+            var lowerHalf = header.ActualHeight > 0 && e.GetPosition(header).Y >= header.ActualHeight / 2;
+            return target.IsCollapsed && lowerHalf ? "After" : "Before";
+        }
+
+        return null;
+    }
+
+    private void OnGroupDragOver(object sender, DragEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TabGroup target } header ||
+            ResolveDropOnGroupHeader(header, target, e) is not { } position)
+        {
+            if (sender is DependencyObject element)
+            {
+                SetDropPosition(element, null);
+            }
+
+            RefuseDrop(e);
+            return;
+        }
+
+        SetDropPosition(header, position);
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+    }
+
+    private void OnGroupDrop(object sender, DragEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: TabGroup target } header || ViewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        var position = ResolveDropOnGroupHeader(header, target, e);
+        SetDropPosition(header, null);
+
+        if (position == "Into" && e.Data.GetData(typeof(BrowserTabViewModel)) is BrowserTabViewModel tab)
+        {
+            viewModel.TabManager.MoveTabToGroup(tab, target);
+        }
+        else if (position is "Before" or "After" && e.Data.GetData(typeof(TabGroup)) is TabGroup group)
+        {
+            viewModel.TabManager.MoveGroup(group, target, after: position == "After");
+        }
+
         e.Handled = true;
     }
 
@@ -351,6 +489,20 @@ public partial class TabsPanel : UserControl, IShellPanel
 
     private void OnTabDrop(object sender, DragEventArgs e)
     {
+        if (sender is FrameworkElement { DataContext: BrowserTabViewModel groupTarget } groupRow &&
+            e.Data.GetData(typeof(TabGroup)) is TabGroup draggedGroup && ViewModel is { } groupViewModel)
+        {
+            SetDropPosition(groupRow, null);
+            if (ResolveGroupDropOnTab(draggedGroup, groupTarget) is not null &&
+                groupViewModel.TabManager.Groups.FirstOrDefault(g => g.Id == groupTarget.GroupId) is { } targetGroup)
+            {
+                groupViewModel.TabManager.MoveGroup(draggedGroup, targetGroup, after: true);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         if (sender is not FrameworkElement { DataContext: BrowserTabViewModel target } row ||
             e.Data.GetData(typeof(BrowserTabViewModel)) is not BrowserTabViewModel source ||
             source == target || ViewModel is not { } viewModel)

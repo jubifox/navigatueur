@@ -470,8 +470,12 @@
           <div class="range"><input type="range" min="0" max="3000" step="50" data-key="interface.hideDelay" data-unit=" ms" /><output></output></div>
         </div>
         <div class="row" data-reveal>
-          <div class="text"><strong>Zone de déclenchement</strong><small>Épaisseur de la bande, le long du bord, qui compte comme « au bord ».</small></div>
+          <div class="text"><strong>Zone de déclenchement</strong><small>Épaisseur de la bande, le long du bord supérieur, qui fait apparaître la barre d'outils.</small></div>
           <div class="range"><input type="range" min="1" max="30" step="1" data-key="interface.triggerSize" data-unit=" px" /><output></output></div>
+        </div>
+        <div class="row" data-reveal>
+          <div class="text"><strong>Zone de déclenchement des onglets</strong><small>Épaisseur de la bande, le long du bord latéral, qui fait apparaître la colonne d'onglets.</small></div>
+          <div class="range"><input type="range" min="1" max="40" step="1" data-key="interface.sidebarTriggerSize" data-unit=" px" /><output></output></div>
         </div>
       </div>
     </section>
@@ -599,6 +603,15 @@
           </select>
         </div>
       </div>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Vidéos en 2K et 4K (VP9, AV1)</strong><small id="vp9Text">YouTube et la plupart des sites.</small></div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Lives Twitch en 2K (HEVC)</strong><small id="hevcText">—</small></div>
+          <button class="btn" id="hevcStore" data-action="codec.hevc.store" hidden>Installer le codec…</button>
+        </div>
+      </div>
     </section>
 
     <!-- =========================================================== Raccourcis -->
@@ -613,10 +626,10 @@
     <!-- =========================================================== Extensions -->
     <section id="extensions">
       <h2>Extensions</h2>
-      <p class="lead">Navigatueur charge de vraies extensions Chrome (uBlock Origin, SponsorBlock…).</p>
+      <p class="lead">uBlock Origin, SponsorBlock, Consent-O-Matic, Decentraleyes, Violentmonkey et BetterTTV font partie de Navigatueur ; vous pouvez aussi ajouter d'autres extensions Chrome.</p>
       <div class="card">
         <div class="row">
-          <div class="text"><strong>Gérer les extensions</strong><small>Installer, activer, ouvrir leurs réglages.</small></div>
+          <div class="text"><strong>Gérer les extensions</strong><small>Activer, ouvrir leur menu ou leurs réglages, en ajouter d'autres. Aussi depuis le bouton Extensions de la barre d'outils.</small></div>
           <button class="btn" data-action="extensions.open">Ouvrir</button>
         </div>
       </div>

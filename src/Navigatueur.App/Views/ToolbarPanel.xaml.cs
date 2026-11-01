@@ -58,6 +58,7 @@ public partial class ToolbarPanel : UserControl, IShellPanel
         DataContextChanged += OnDataContextChanged;
         BookmarksPopup.Closed += (_, _) => _popupClosedAt[BookmarksPopup] = DateTime.UtcNow;
         DownloadsPopup.Closed += (_, _) => _popupClosedAt[DownloadsPopup] = DateTime.UtcNow;
+        ExtensionsPopup.Closed += (_, _) => _popupClosedAt[ExtensionsPopup] = DateTime.UtcNow;
 
         // The panel can outlive nothing but its window: subscribe to the app-wide
         // services only while it's on screen, so a closed window can be collected.
@@ -82,7 +83,8 @@ public partial class ToolbarPanel : UserControl, IShellPanel
         || MainMenu.IsOpen
         || SuggestionsPopup.IsOpen
         || BookmarksPopup.IsOpen
-        || DownloadsPopup.IsOpen;
+        || DownloadsPopup.IsOpen
+        || ExtensionsPopup.IsOpen;
 
     public void ApplyChrome(bool floating, bool effects, PanelSide side, double shadowSize)
     {
@@ -334,6 +336,36 @@ public partial class ToolbarPanel : UserControl, IShellPanel
     }
 
     private void OnBookmarksClick(object sender, RoutedEventArgs e) => TogglePopup(BookmarksPopup);
+
+    private void OnExtensionsClick(object sender, RoutedEventArgs e) => TogglePopup(ExtensionsPopup);
+
+    /// <summary>Opens the extension's own menu just under the toolbar button — or, without one, its settings in a new tab.</summary>
+    private void OnExtensionItemClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not InstalledExtension { IsEnabled: true } extension)
+        {
+            return;
+        }
+
+        ExtensionsPopup.IsOpen = false;
+        if (extension.HasPopup)
+        {
+            extension.OpenPopupAt(ScreenPointUnder(ExtensionsButton));
+        }
+        else if (extension.OptionsUrl is { } options && DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.TabManager.OpenTab(options);
+        }
+    }
+
+    /// <summary>The bottom-right corner of <paramref name="element"/> on screen, in device-independent pixels (what Window.Left/Top use).</summary>
+    private static Point ScreenPointUnder(FrameworkElement element)
+    {
+        var device = element.PointToScreen(new Point(element.ActualWidth, element.ActualHeight));
+        return PresentationSource.FromVisual(element)?.CompositionTarget is { } target
+            ? target.TransformFromDevice.Transform(device)
+            : device;
+    }
 
     private void OnDownloadsClick(object sender, RoutedEventArgs e) => ToggleDownloads();
 

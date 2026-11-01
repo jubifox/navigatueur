@@ -46,6 +46,7 @@
     <BooleanToVisibilityConverter x:Key="BoolToVis" />
     <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis" />
     <converters:FaviconFallbackVisibilityConverter x:Key="FaviconFallbackVisibility" />
+    <converters:GroupGlyphConverter x:Key="GroupGlyph" />
 
     <Style TargetType="{x:Type Window}">
         <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />

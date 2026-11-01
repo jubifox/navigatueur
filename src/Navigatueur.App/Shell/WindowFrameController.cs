@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shell;
 using Navigatueur.App.Interop;
+using Navigatueur.Core.Interface;
 
 namespace Navigatueur.App.Shell;
 
@@ -180,24 +181,66 @@ public sealed class WindowFrameController
     /// frame, Windows otherwise maximizes the window to the frame-inflated
     /// size: it spills a few pixels off every edge and slides under the
     /// taskbar — which also put the immersive edge zones off-screen, out of
-    /// the mouse's reach (seen on the Windows CI run).
+    /// the mouse's reach (seen on the Windows CI run). With an auto-hidden
+    /// taskbar, a small gap is kept on its edge (see MaximizedBounds), or
+    /// Windows would take the window for a fullscreen app and never let the
+    /// taskbar slide back in.
     /// </summary>
     private IntPtr FrameWindowHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == NativeMethods.WM_GETMINMAXINFO && !IsFullScreen && NativeMethods.TryGetMonitorInfo(hwnd, out var monitor))
         {
             var info = Marshal.PtrToStructure<NativeMethods.MINMAXINFO>(lParam);
-            var work = monitor.rcWork;
-            var bounds = monitor.rcMonitor;
-            info.ptMaxPosition.X = work.Left - bounds.Left;
-            info.ptMaxPosition.Y = work.Top - bounds.Top;
-            info.ptMaxSize.X = work.Right - work.Left;
-            info.ptMaxSize.Y = work.Bottom - work.Top;
+            var placement = MaximizedBounds.Compute(ToPixelRect(monitor.rcMonitor), ToPixelRect(monitor.rcWork), GetAutoHideEdges(monitor.rcMonitor));
+            info.ptMaxPosition.X = placement.X;
+            info.ptMaxPosition.Y = placement.Y;
+            info.ptMaxSize.X = placement.Width;
+            info.ptMaxSize.Y = placement.Height;
             Marshal.StructureToPtr(info, lParam, false);
         }
 
         return IntPtr.Zero;
     }
+
+    private NativeMethods.RECT _autoHideCacheMonitor;
+    private ScreenEdges _autoHideCacheEdges;
+    private long _autoHideCacheExpiry;
+
+    /// <summary>
+    /// Which edges of this monitor hold an auto-hidden taskbar. WM_GETMINMAXINFO
+    /// arrives on every step of a drag-resize and each query is a round trip
+    /// to Explorer, so the answer is reused for a couple of seconds.
+    /// </summary>
+    private ScreenEdges GetAutoHideEdges(NativeMethods.RECT monitor)
+    {
+        var now = Environment.TickCount64;
+        if (now < _autoHideCacheExpiry && _autoHideCacheMonitor.Equals(monitor))
+        {
+            return _autoHideCacheEdges;
+        }
+
+        var edges = ScreenEdges.None;
+        foreach (var (appBarEdge, screenEdge) in new[]
+                 {
+                     (NativeMethods.ABE_LEFT, ScreenEdges.Left),
+                     (NativeMethods.ABE_TOP, ScreenEdges.Top),
+                     (NativeMethods.ABE_RIGHT, ScreenEdges.Right),
+                     (NativeMethods.ABE_BOTTOM, ScreenEdges.Bottom),
+                 })
+        {
+            if (NativeMethods.HasAutoHideAppBar(appBarEdge, monitor))
+            {
+                edges |= screenEdge;
+            }
+        }
+
+        _autoHideCacheMonitor = monitor;
+        _autoHideCacheEdges = edges;
+        _autoHideCacheExpiry = now + 2000;
+        return edges;
+    }
+
+    private static PixelRect ToPixelRect(NativeMethods.RECT rect) => new(rect.Left, rect.Top, rect.Right, rect.Bottom);
 
     /// <summary>
     /// Safety net for <see cref="FrameWindowHook"/>: a chrome-less maximized window is sized past the monitor's work area by

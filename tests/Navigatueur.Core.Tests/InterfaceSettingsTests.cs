@@ -91,6 +91,38 @@ public class InterfaceSettingsTests
     }
 
     [Fact]
+    public void SideTriggerZone_IsWiderThanTopByDefault()
+    {
+        var settings = new InterfaceSettings();
+
+        Assert.Equal(6, settings.EdgeTriggerSize);
+        Assert.Equal(18, settings.SidebarEdgeTriggerSize);
+    }
+
+    [Theory]
+    [InlineData(0, InterfaceSettings.MinEdgeTriggerSize)]
+    [InlineData(500, InterfaceSettings.MaxEdgeTriggerSize)]
+    [InlineData(25, 25)]
+    public void Normalize_ClampsSideTriggerZone(int value, int expected)
+    {
+        var settings = new InterfaceSettings { SidebarEdgeTriggerSize = value };
+
+        settings.Normalize();
+
+        Assert.Equal(expected, settings.SidebarEdgeTriggerSize);
+    }
+
+    [Fact]
+    public void ExistingFileWithoutSideTriggerZone_GetsTheWiderDefault_AndKeepsItsTopZone()
+    {
+        // A v0.18.0 settings.json: the shared EdgeTriggerSize is stored, the side-specific key doesn't exist yet.
+        var settings = AppSettingsSerializer.Deserialize("""{ "Interface": { "EdgeTriggerSize": 9, "HasSeenIntro": true } }""");
+
+        Assert.Equal(9, settings.Interface.EdgeTriggerSize);
+        Assert.Equal(18, settings.Interface.SidebarEdgeTriggerSize);
+    }
+
+    [Fact]
     public void Normalize_NaNWidth_ResetsToDefault()
     {
         var settings = new InterfaceSettings { SidebarWidth = double.NaN };

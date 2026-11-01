@@ -94,6 +94,12 @@ jobs:
             if (-not (Test-Path (Join-Path $dir "Resources\Pages\$page"))) { throw "Missing installed page: $page" }
           }
 
+          # The built-in extensions ship with the app (except Web Store ones, installed by the app itself).
+          $catalog = (Get-Content src/Navigatueur.App/Resources/Extensions/builtin-extensions.json | Where-Object { $_ -notmatch '^\s*//' }) -join "`n" | ConvertFrom-Json
+          foreach ($extension in $catalog.extensions | Where-Object { -not $_.webStoreId }) {
+            if (-not (Test-Path (Join-Path $dir "Extensions\$($extension.package)"))) { throw "Missing built-in extension package: $($extension.package)" }
+          }
+
           New-Item -ItemType Directory -Force "$env:APPDATA\Navigatueur" | Out-Null
           '{ "Interface": { "HasSeenIntro": true } }' | Set-Content "$env:APPDATA\Navigatueur\settings.json"
           $app = Start-Process $exe -PassThru

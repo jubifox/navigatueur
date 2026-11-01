@@ -1,197 +1,66 @@
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Web.WebView2.Core;
 using Navigatueur.App.Views;
+using Navigatueur.Core.Extensions;
 
 namespace Navigatueur.App.Services;
 
-/// <summary>Download source + a bit of context for a one-click curated extension install.</summary>
-public sealed record RecommendedExtension(string Name, string Description, string DownloadUrl);
-
 /// <summary>
-/// WebView2 actually supports loading real, unpacked Chromium extensions
+/// Real Chromium extensions, loaded unpacked into the engine
 /// (CoreWebView2Profile.AddBrowserExtensionAsync) — the same mechanism Edge
-/// itself uses. Rather than reimplementing specific extensions (uBlock
-/// Origin, BetterTTV, Coupert...) natively, which risks a fragile/incorrect
-/// port of code we don't own, this exposes that real capability: point it at
-/// an unpacked extension folder and it runs exactly as it would in Chrome/Edge.
+/// uses — rather than native re-implementations of code we don't own.
 ///
-/// A handful of well-known open-source extensions are offered as one-click
-/// installs too (verified to publish a ready-to-load unpacked build):
-///  - uBlock Origin: the real thing, far ahead of our own reimplementation on
-///    a fast-moving target like YouTube's ad system.
-///  - Consent-O-Matic: auto-answers cookie consent banners.
-///  - SponsorBlock: skips sponsored segments on YouTube (crowdsourced).
-///  - Decentraleyes: local CDN emulation to dodge third-party JS tracking.
-/// Privacy Badger isn't offered here — EFF doesn't publish a ready build,
-/// only source that needs their npm build pipeline, which isn't safe to run
-/// unattended as part of a one-click installer.
+/// Six of them are part of Navigatueur's core (BuiltInExtensionCatalog):
+/// uBlock Origin, Consent-O-Matic, SponsorBlock, Decentraleyes, Violentmonkey
+/// and BetterTTV ship with the app, are installed automatically once the
+/// engine runs (<see cref="EnsureBuiltInsAsync"/>) and can be switched off
+/// but not removed. Any other unpacked extension can still be added.
 /// </summary>
 public partial class ExtensionService : ObservableObject
 {
-    public static readonly RecommendedExtension[] Recommended =
+    /// <summary>The engine also reports Microsoft's own components (PDF viewer, clipboard) — they aren't user extensions.</summary>
+    private static readonly HashSet<string> EngineComponentIds = new(StringComparer.OrdinalIgnoreCase)
     {
-        new(
-            "uBlock Origin",
-            "Bloqueur de pubs/trackers complet — bien plus efficace que le nôtre sur YouTube.",
-            "https://github.com/gorhill/uBlock/releases/download/1.72.2/uBlock0_1.72.2.chromium.zip"),
-        new(
-            "Consent-O-Matic",
-            "Répond automatiquement aux bandeaux de consentement cookies.",
-            "https://github.com/cavi-au/Consent-O-Matic/releases/download/v1.1.5/consent-o-matic-v1.1.5-unpacked-release-chromium.zip"),
-        new(
-            "SponsorBlock",
-            "Passe automatiquement les segments sponsorisés sur YouTube.",
-            "https://github.com/ajayyy/SponsorBlock/releases/download/6.1.7/ChromeExtension.zip"),
-        new(
-            "Decentraleyes",
-            "Sert localement les bibliothèques JS courantes pour éviter le pistage via les CDN partagés.",
-            "https://github.com/Synzvato/decentraleyes/archive/refs/heads/master.zip"),
+        "mhjfbmdgcfjbbpaeojofohoefgiehjai",
+        "dgiklkfkllikcanfonkcabmbdfmgleag",
     };
 
-    private static readonly string ExtensionsDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Navigatueur", "Extensions");
-
     /// <summary>
-    /// Maps an installed extension's WebView2-assigned Id to the unpacked
-    /// folder it was installed from — CoreWebView2BrowserExtension itself
-    /// doesn't expose that path back, so it has to be recorded at install
-    /// time (see AddExtensionAsync) to later read manifest.json and find the
-    /// extension's popup (see TryReadPopupPath / RefreshAsync).
+    /// Maps an installed extension's engine Id to the unpacked folder it was
+    /// loaded from — CoreWebView2BrowserExtension doesn't expose that path, so
+    /// it's recorded at install time to later read manifest.json (popup,
+    /// options page, icon).
     /// </summary>
-    private static readonly string ManifestPathsFile = Path.Combine(ExtensionsDirectory, "manifest-paths.json");
+    private static readonly string ManifestPathsFile = Path.Combine(BuiltInExtensions.ExtensionsDirectory, "manifest-paths.json");
 
+    /// <summary>Every visible extension, core ones first — what the toolbar's extensions menu lists.</summary>
     public ObservableCollection<InstalledExtension> Extensions { get; } = new();
 
-    public ObservableCollection<RecommendedExtensionViewModel> RecommendedItems { get; } = new(
-        Recommended.Select(r => new RecommendedExtensionViewModel(r)));
+    public ObservableCollection<InstalledExtension> BuiltIns { get; } = new();
+
+    public ObservableCollection<InstalledExtension> Others { get; } = new();
 
     [ObservableProperty]
     private string? lastError;
 
+    /// <summary>Progress or trouble installing the core extensions, shown in the Extensions window; null when all is well.</summary>
+    [ObservableProperty]
+    private string? builtInStatus;
+
     private CoreWebView2Profile? _profile;
     private readonly Dictionary<string, string> _manifestPaths;
+    private Task? _builtInInstall;
 
     public ExtensionService()
     {
-        Extensions.CollectionChanged += (_, _) => RefreshRecommendedInstalledState();
         _manifestPaths = LoadManifestPaths();
-    }
-
-    private static Dictionary<string, string> LoadManifestPaths()
-    {
-        try
-        {
-            return File.Exists(ManifestPathsFile)
-                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(ManifestPathsFile)) ?? new()
-                : new();
-        }
-        catch (Exception ex) when (ex is IOException or JsonException)
-        {
-            return new();
-        }
-    }
-
-    private void SaveManifestPaths()
-    {
-        try
-        {
-            Directory.CreateDirectory(ExtensionsDirectory);
-            File.WriteAllText(ManifestPathsFile, JsonSerializer.Serialize(_manifestPaths));
-        }
-        catch (IOException)
-        {
-            // Non-fatal: worst case, the popup button just won't show up after a restart.
-        }
-    }
-
-    /// <summary>Reads manifest.json's declared popup page (MV3 "action" or MV2 "browser_action"), if any — extensions without a toolbar popup (most ad-blockers' background-only logic) just won't offer the "Ouvrir" button.</summary>
-    private static bool TryReadPopupPath(string folder, out string? popupPath)
-    {
-        popupPath = null;
-        var manifestFile = Path.Combine(folder, "manifest.json");
-        if (!File.Exists(manifestFile))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(File.ReadAllText(manifestFile));
-            var root = doc.RootElement;
-
-            if (root.TryGetProperty("action", out var action) && action.TryGetProperty("default_popup", out var mv3Popup))
-            {
-                popupPath = mv3Popup.GetString();
-            }
-            else if (root.TryGetProperty("browser_action", out var browserAction) && browserAction.TryGetProperty("default_popup", out var mv2Popup))
-            {
-                popupPath = mv2Popup.GetString();
-            }
-
-            return !string.IsNullOrEmpty(popupPath);
-        }
-        catch (JsonException)
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Falls back to the predictable install folder a *recommended* extension
-    /// would have used (see InstallRecommendedAsync's safeName) when there's
-    /// no recorded entry for it — the id-&gt;folder map was only added in
-    /// v0.17.0, so anyone who installed uBlock Origin/Consent-O-Matic/etc.
-    /// before that update would otherwise never get an "Ouvrir" button no
-    /// matter how many times the list refreshes, since nothing ever wrote
-    /// their entry. Backfills the map on a hit so this only has to run once
-    /// per extension. A manually-added (non-recommended) extension installed
-    /// before v0.17.0 has no predictable folder to guess, so it's still stuck
-    /// without a popup button — there's no way to recover that path after the fact.
-    /// </summary>
-    private string? ResolveFolder(CoreWebView2BrowserExtension extension)
-    {
-        if (_manifestPaths.TryGetValue(extension.Id, out var folder))
-        {
-            return folder;
-        }
-
-        var match = Recommended.FirstOrDefault(r =>
-            extension.Name.Contains(r.Name, StringComparison.OrdinalIgnoreCase));
-        if (match is null)
-        {
-            return null;
-        }
-
-        var safeName = string.Concat(match.Name.Split(Path.GetInvalidFileNameChars()));
-        var extractDir = Path.Combine(ExtensionsDirectory, safeName);
-        // Some archives (e.g. Decentraleyes' GitHub "archive/refs/heads/master.zip")
-        // nest manifest.json inside a "{repo}-{branch}" subfolder rather than at the
-        // archive root — same lookup InstallRecommendedAsync itself uses.
-        if (!Directory.Exists(extractDir) || FindManifestDirectory(extractDir) is not { } guessedFolder)
-        {
-            return null;
-        }
-
-        _manifestPaths[extension.Id] = guessedFolder;
-        SaveManifestPaths();
-        return guessedFolder;
-    }
-
-    private void RefreshRecommendedInstalledState()
-    {
-        foreach (var item in RecommendedItems)
-        {
-            item.IsInstalled = Extensions.Any(e =>
-                e.Name.Contains(item.Recommended.Name, StringComparison.OrdinalIgnoreCase));
-        }
     }
 
     /// <summary>
@@ -199,6 +68,7 @@ public partial class ExtensionService : ObservableObject
     /// The profile handle only stays valid while its originating WebView2 control is
     /// alive, so this keeps _profile pointed at a recently-attached control rather than
     /// caching the very first one forever (which goes stale as soon as that tab suspends).
+    /// The first time, it also makes sure every core extension is installed.
     /// </summary>
     public async void AttachProfile(CoreWebView2Profile profile)
     {
@@ -209,6 +79,7 @@ public partial class ExtensionService : ObservableObject
 
         _profile = profile;
         await RefreshAsync();
+        _builtInInstall ??= EnsureBuiltInsAsync();
     }
 
     /// <summary>Prefers the currently active tab's live profile handle, falling back to the last-attached one.</summary>
@@ -233,28 +104,35 @@ public partial class ExtensionService : ObservableObject
 
         try
         {
-            var list = await profile.GetBrowserExtensionsAsync();
-            Extensions.Clear();
-            foreach (var extension in list)
+            var catalog = BuiltInExtensions.Catalog;
+            var items = new List<InstalledExtension>();
+            foreach (var extension in await profile.GetBrowserExtensionsAsync())
             {
-                string? popupUrl = null;
-                var folder = ResolveFolder(extension);
-                if (folder is not null && TryReadPopupPath(folder, out var popupPath))
+                if (EngineComponentIds.Contains(extension.Id))
                 {
-                    popupUrl = $"chrome-extension://{extension.Id}/{popupPath!.TrimStart('/')}";
+                    continue;
                 }
 
-                // folder is only ever null for a manually-added (non-recommended)
-                // extension installed before v0.17.0 — WebView2 loads an unpacked
-                // extension by reference (it never copies it anywhere Navigatueur
-                // can discover afterwards), and the id->folder map that lets a
-                // later run re-find it only started being written in v0.17.0, so
-                // there is genuinely nothing to look up here for one added before
-                // that. NeedsFolderLocation lets the UI ask the user to point at
-                // it again once, without touching the extension itself.
-                Extensions.Add(new InstalledExtension(extension, this, popupUrl, needsFolderLocation: folder is null));
+                var builtIn = catalog.FindByEngineName(extension.Name);
+                var folder = ResolveFolder(extension, builtIn);
+                var manifest = folder is null ? ManifestInfo.None : ReadManifestInfo(folder, extension.Id);
+
+                // folder is only ever null for a manually-added extension installed before
+                // v0.17.0 (when Navigatueur started recording where extensions come from):
+                // NeedsFolderLocation lets the window ask the user to point at it once.
+                items.Add(new InstalledExtension(extension, this, builtIn, manifest, needsFolderLocation: folder is null));
             }
 
+            var builtIns = items.Where(i => i.IsBuiltIn)
+                .OrderBy(i => catalog.Extensions.IndexOf(i.BuiltIn!))
+                .ToList();
+            var others = items.Where(i => !i.IsBuiltIn)
+                .OrderBy(i => i.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            Replace(BuiltIns, builtIns);
+            Replace(Others, others);
+            Replace(Extensions, builtIns.Concat(others));
             LastError = null;
         }
         catch (Exception ex)
@@ -263,13 +141,89 @@ public partial class ExtensionService : ObservableObject
         }
     }
 
+    private static void Replace(ObservableCollection<InstalledExtension> target, IEnumerable<InstalledExtension> items)
+    {
+        target.Clear();
+        foreach (var item in items)
+        {
+            target.Add(item);
+        }
+    }
+
+    /// <summary>
+    /// Installs every core extension the engine doesn't have yet — first run,
+    /// a new machine, or one that went missing. A copy the user already has
+    /// (even one loaded from elsewhere, like a manually added Violentmonkey) is
+    /// recognized by name and left alone, so nothing is ever installed twice.
+    /// </summary>
+    private async Task EnsureBuiltInsAsync()
+    {
+        var catalog = BuiltInExtensions.Catalog;
+        if (catalog.IsEmpty || ResolveLiveProfile() is not { } profile)
+        {
+            return;
+        }
+
+        var failed = new List<string>();
+        try
+        {
+            var installed = await profile.GetBrowserExtensionsAsync();
+            foreach (var builtIn in catalog.Extensions)
+            {
+                if (installed.Any(e => builtIn.Recognizes(e.Name)))
+                {
+                    continue;
+                }
+
+                BuiltInStatus = $"Installation de {builtIn.Name}…";
+                try
+                {
+                    var manifestDirectory = await BuiltInExtensions.InstallAsync(builtIn, AppServices.WebView2Environment.RuntimeVersion);
+                    var added = await (ResolveLiveProfile() ?? profile).AddBrowserExtensionAsync(manifestDirectory);
+                    _manifestPaths[added.Id] = manifestDirectory;
+                    SaveManifestPaths();
+                }
+                catch (Exception ex)
+                {
+                    failed.Add(builtIn.Name);
+                    CrashLog.Write($"Installation de l'extension intégrée « {builtIn.Name} »", ex);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // The tab whose profile this was got closed meanwhile; next start tries again.
+            CrashLog.Write("Extensions intégrées", ex);
+        }
+
+        BuiltInStatus = failed.Count == 0
+            ? null
+            : $"Impossible d'installer {string.Join(", ", failed)} pour l'instant (connexion ?). Nouvel essai au prochain démarrage.";
+        await RefreshAsync();
+    }
+
+    /// <summary>Where an extension's files are: the recorded install folder, or — for a core extension — its known folder.</summary>
+    private string? ResolveFolder(CoreWebView2BrowserExtension extension, BuiltInExtension? builtIn)
+    {
+        if (_manifestPaths.TryGetValue(extension.Id, out var folder) && Directory.Exists(folder))
+        {
+            return folder;
+        }
+
+        if (builtIn is null || BuiltInExtensions.FindManifestDirectory(BuiltInExtensions.FolderOf(builtIn)) is not { } known)
+        {
+            return null;
+        }
+
+        _manifestPaths[extension.Id] = known;
+        SaveManifestPaths();
+        return known;
+    }
+
     /// <summary>
     /// Records where an already-installed extension's unpacked folder lives,
-    /// for the "Localiser..." button (see InstalledExtension.NeedsFolderLocation)
-    /// — this only ever needs to run once per extension per machine, since the
-    /// result is persisted to manifest-paths.json. Doesn't touch the extension
-    /// itself (no remove/re-add), just supplies the lookup this app's own
-    /// popup-button feature needs.
+    /// for the "Localiser…" button (see InstalledExtension.NeedsFolderLocation).
+    /// Doesn't touch the extension itself, just supplies the lookup.
     /// </summary>
     public async Task<bool> SetManifestFolderAsync(string extensionId, string folderPath)
     {
@@ -311,15 +265,20 @@ public partial class ExtensionService : ObservableObject
 
     public async Task RemoveAsync(InstalledExtension extension)
     {
+        if (extension.IsBuiltIn)
+        {
+            return; // part of Navigatueur: can be switched off, not removed (it would come back at the next start anyway)
+        }
+
         try
         {
             await extension.Extension.RemoveAsync();
-            Extensions.Remove(extension);
-
             if (_manifestPaths.Remove(extension.Id))
             {
                 SaveManifestPaths();
             }
+
+            await RefreshAsync();
         }
         catch (Exception ex)
         {
@@ -327,78 +286,95 @@ public partial class ExtensionService : ObservableObject
         }
     }
 
-    /// <summary>Downloads a recommended extension's zip, extracts it, locates its manifest.json (some zips wrap the extension in a subfolder), and installs it.</summary>
-    public async Task<bool> InstallRecommendedAsync(RecommendedExtension recommended)
+    // ------------------------------------------------------------ manifest
+
+    /// <summary>What Navigatueur's UI needs from an extension's manifest.json.</summary>
+    public sealed record ManifestInfo(string? PopupUrl, string? OptionsUrl, string? IconPath)
     {
-        if (ResolveLiveProfile() is null)
-        {
-            LastError = "Aucun onglet n'est encore chargé — ouvre un onglet puis réessaie.";
-            return false;
-        }
+        public static ManifestInfo None { get; } = new(null, null, null);
+    }
 
-        var safeName = string.Concat(recommended.Name.Split(Path.GetInvalidFileNameChars()));
-        var extractDir = Path.Combine(ExtensionsDirectory, safeName);
-        var zipPath = Path.Combine(Path.GetTempPath(), $"{safeName}.zip");
-
+    /// <summary>
+    /// Popup page (MV3 "action" / MV2 "browser_action"), options page, and the
+    /// icon file closest to 32 px. WebView2 has no extension toolbar of its own,
+    /// so these are what the toolbar's extensions menu shows and opens.
+    /// </summary>
+    private static ManifestInfo ReadManifestInfo(string folder, string extensionId)
+    {
         try
         {
-            using (var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(60) })
+            using var document = JsonDocument.Parse(File.ReadAllText(Path.Combine(folder, "manifest.json")),
+                new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true });
+            var root = document.RootElement;
+
+            string? PageUrl(string? page) => string.IsNullOrWhiteSpace(page) ? null : $"chrome-extension://{extensionId}/{page.TrimStart('/')}";
+
+            string? popup = null;
+            foreach (var key in new[] { "action", "browser_action" })
             {
-                httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("Navigatueur");
-                var bytes = await httpClient.GetByteArrayAsync(recommended.DownloadUrl);
-                await File.WriteAllBytesAsync(zipPath, bytes);
+                if (root.TryGetProperty(key, out var action) && action.ValueKind == JsonValueKind.Object &&
+                    action.TryGetProperty("default_popup", out var page) && page.ValueKind == JsonValueKind.String)
+                {
+                    popup = page.GetString();
+                    break;
+                }
             }
 
-            if (Directory.Exists(extractDir))
+            string? options = null;
+            if (root.TryGetProperty("options_ui", out var optionsUi) && optionsUi.ValueKind == JsonValueKind.Object &&
+                optionsUi.TryGetProperty("page", out var optionsPage) && optionsPage.ValueKind == JsonValueKind.String)
             {
-                Directory.Delete(extractDir, recursive: true);
+                options = optionsPage.GetString();
+            }
+            else if (root.TryGetProperty("options_page", out var legacyOptions) && legacyOptions.ValueKind == JsonValueKind.String)
+            {
+                options = legacyOptions.GetString();
             }
 
-            ZipFile.ExtractToDirectory(zipPath, extractDir);
-
-            var manifestDir = FindManifestDirectory(extractDir);
-            if (manifestDir is null)
+            string? icon = null;
+            if (root.TryGetProperty("icons", out var icons) && icons.ValueKind == JsonValueKind.Object)
             {
-                LastError = $"« {recommended.Name} » : manifest.json introuvable dans l'archive téléchargée.";
-                return false;
+                var best = icons.EnumerateObject()
+                    .Where(p => int.TryParse(p.Name, out _) && p.Value.ValueKind == JsonValueKind.String)
+                    .OrderBy(p => Math.Abs(int.Parse(p.Name) - 32) + (int.Parse(p.Name) < 32 ? 1000 : 0))
+                    .Select(p => Path.GetFullPath(Path.Combine(folder, p.Value.GetString()!.TrimStart('/'))))
+                    .FirstOrDefault(path => path.StartsWith(Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase) && File.Exists(path));
+                icon = best;
             }
 
-            return await AddExtensionAsync(manifestDir);
+            return new ManifestInfo(PageUrl(popup), PageUrl(options), icon);
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException or NotSupportedException)
         {
-            LastError = $"« {recommended.Name} » : {ex.Message}";
-            return false;
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(zipPath);
-            }
-            catch (IOException)
-            {
-                // Non-fatal: a leftover temp file isn't worth failing the install over.
-            }
+            return ManifestInfo.None;
         }
     }
 
-    private static string? FindManifestDirectory(string root)
+    private static Dictionary<string, string> LoadManifestPaths()
     {
-        if (File.Exists(Path.Combine(root, "manifest.json")))
+        try
         {
-            return root;
+            return File.Exists(ManifestPathsFile)
+                ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(ManifestPathsFile)) ?? new()
+                : new();
         }
-
-        foreach (var dir in Directory.GetDirectories(root))
+        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException)
         {
-            if (File.Exists(Path.Combine(dir, "manifest.json")))
-            {
-                return dir;
-            }
+            return new();
         }
+    }
 
-        return null;
+    private void SaveManifestPaths()
+    {
+        try
+        {
+            Directory.CreateDirectory(BuiltInExtensions.ExtensionsDirectory);
+            File.WriteAllText(ManifestPathsFile, JsonSerializer.Serialize(_manifestPaths));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Non-fatal: worst case, the popup button just won't show up after a restart.
+        }
     }
 }
 
@@ -406,36 +382,68 @@ public partial class InstalledExtension : ObservableObject
 {
     private readonly ExtensionService _owner;
 
-    public InstalledExtension(CoreWebView2BrowserExtension extension, ExtensionService owner, string? popupUrl, bool needsFolderLocation)
+    public InstalledExtension(
+        CoreWebView2BrowserExtension extension,
+        ExtensionService owner,
+        BuiltInExtension? builtIn,
+        ExtensionService.ManifestInfo manifest,
+        bool needsFolderLocation)
     {
         Extension = extension;
         _owner = owner;
+        BuiltIn = builtIn;
         Id = extension.Id;
         Name = extension.Name;
         isEnabled = extension.IsEnabled;
-        PopupUrl = popupUrl;
+        PopupUrl = manifest.PopupUrl;
+        OptionsUrl = manifest.OptionsUrl;
+        IconPath = manifest.IconPath;
         NeedsFolderLocation = needsFolderLocation;
     }
 
     internal CoreWebView2BrowserExtension Extension { get; }
 
+    /// <summary>Set for the extensions that are part of Navigatueur's core.</summary>
+    public BuiltInExtension? BuiltIn { get; }
+
+    public bool IsBuiltIn => BuiltIn is not null;
+
+    public bool CanRemove => !IsBuiltIn;
+
     public string Id { get; }
 
+    /// <summary>The name the engine reports (localized, sometimes long — "SponsorBlock pour YouTube - …").</summary>
     public string Name { get; }
 
-    /// <summary>chrome-extension://{id}/{popup page}, or null for an extension whose manifest declares no toolbar popup, or whose folder isn't known (see NeedsFolderLocation). Drives the "Ouvrir" button's visibility.</summary>
+    /// <summary>Short name for menus: the catalog's for core extensions, the engine's otherwise.</summary>
+    public string DisplayName => BuiltIn?.Name ?? Name;
+
+    public string? Description => BuiltIn?.Description;
+
+    /// <summary>chrome-extension://{id}/{popup page}, or null when the manifest declares none.</summary>
     public string? PopupUrl { get; }
 
     public bool HasPopup => PopupUrl is not null;
 
+    public string? OptionsUrl { get; }
+
+    public bool HasOptions => OptionsUrl is not null;
+
+    public string? IconPath { get; }
+
+    /// <summary>What clicking it in the toolbar's menu does.</summary>
+    public string ActionHint => HasPopup
+        ? "Ouvrir son menu"
+        : HasOptions
+            ? "Ouvrir ses réglages"
+            : IsBuiltIn && BuiltIn!.Id == "betterttv"
+                ? "Réglages dans le chat Twitch"
+                : "Fonctionne en arrière-plan";
+
     /// <summary>
-    /// True when Navigatueur genuinely doesn't know which unpacked folder this
-    /// extension was loaded from, so it can't even check whether it declares a
-    /// popup — always false for anything installed via the "Installer" button
-    /// or "Ajouter une extension..." from v0.17.0 onward (both record it at
-    /// install time); only true for an extension added before that update.
-    /// Drives the "Localiser..." button, which just asks once for that folder
-    /// again rather than needing to remove/re-add the extension.
+    /// True when Navigatueur doesn't know which folder this extension was loaded
+    /// from (a manually-added extension from before v0.17.0), so it can't read
+    /// its manifest. Drives the "Localiser…" button.
     /// </summary>
     public bool NeedsFolderLocation { get; }
 
@@ -448,61 +456,30 @@ public partial class InstalledExtension : ObservableObject
     private async Task Remove() => await _owner.RemoveAsync(this);
 
     /// <summary>
-    /// Opens the extension's own popup UI (settings, per-site toggles, stats —
-    /// whatever it normally shows when you click its toolbar icon in a real
-    /// browser) in a small standalone window. WebView2 has no extension
-    /// toolbar of its own to click, so this is the only way to reach that UI
-    /// at all for extensions that need it (uBlock Origin's dashboard/per-site
-    /// controls, Consent-O-Matic's settings, etc.).
+    /// Opens the extension's own popup (settings, per-site switches, stats —
+    /// what clicking its icon shows in other browsers) in a small window,
+    /// under <paramref name="anchor"/> (a screen point, in device-independent
+    /// pixels: where the window's top-right corner goes) when given.
     /// </summary>
-    [RelayCommand]
-    private void OpenPopup()
+    public void OpenPopupAt(Point? anchor)
     {
-        if (PopupUrl is null)
+        if (PopupUrl is not null)
         {
-            return;
+            new ExtensionPopupWindow(DisplayName, PopupUrl, anchor).Show();
         }
-
-        new ExtensionPopupWindow(Name, PopupUrl).Show();
-    }
-}
-
-/// <summary>Per-item install state (busy/installed) for a <see cref="RecommendedExtension"/> shown in the UI.</summary>
-public partial class RecommendedExtensionViewModel : ObservableObject
-{
-    public RecommendedExtensionViewModel(RecommendedExtension recommended)
-    {
-        Recommended = recommended;
     }
 
-    public RecommendedExtension Recommended { get; }
-
-    public string Name => Recommended.Name;
-
-    public string Description => Recommended.Description;
-
-    [ObservableProperty]
-    private bool isInstalling;
-
-    [ObservableProperty]
-    private bool isInstalled;
-
     [RelayCommand]
-    private async Task Install()
-    {
-        if (IsInstalling || IsInstalled)
-        {
-            return;
-        }
+    private void OpenPopup() => OpenPopupAt(null);
 
-        IsInstalling = true;
-        try
+    /// <summary>Opens the extension's options page in a new tab of the primary window.</summary>
+    [RelayCommand]
+    private void OpenOptions()
+    {
+        if (OptionsUrl is not null)
         {
-            await AppServices.Extensions.InstallRecommendedAsync(Recommended);
-        }
-        finally
-        {
-            IsInstalling = false;
+            AppServices.TabManager.OpenTab(OptionsUrl);
+            Application.Current?.MainWindow?.Activate();
         }
     }
 }

@@ -25,39 +25,43 @@
 
             <StackPanel DockPanel.Dock="Top" Margin="22,0,22,12">
                 <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12.5" Margin="0,0,0,12"
-                           Text="Navigatueur charge de vraies extensions Chrome (uBlock Origin, SponsorBlock…). Ajoutez un dossier d'extension « non empaqueté » contenant un manifest.json." />
+                           Text="Les extensions intégrées font partie de Navigatueur : elles s'installent et se mettent à jour avec lui, et se désactivent ici ou depuis le bouton Extensions de la barre d'outils. Vous pouvez aussi ajouter une extension Chrome « non empaquetée » (un dossier contenant un manifest.json)." />
                 <Button Content="Ajouter une extension…" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Left" Click="OnAddExtensionClick" />
+                <TextBlock Text="{Binding BuiltInStatus}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding BuiltInStatus}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
                 <TextBlock x:Name="ErrorText" Foreground="{DynamicResource DangerBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0" Visibility="Collapsed" />
             </StackPanel>
 
             <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="22,0,18,18">
                 <StackPanel>
-                    <TextBlock Text="RECOMMANDÉES" Style="{StaticResource SectionLabel}" Margin="2,6,0,8" />
-                    <ItemsControl ItemsSource="{Binding RecommendedItems}">
+                    <TextBlock Text="INTÉGRÉES À NAVIGATUEUR" Style="{StaticResource SectionLabel}" Margin="2,6,0,8" />
+                    <ItemsControl ItemsSource="{Binding BuiltIns}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="14,12" Margin="0,0,0,8">
                                     <DockPanel>
-                                        <Button DockPanel.Dock="Right" VerticalAlignment="Center" Command="{Binding InstallCommand}">
-                                            <Button.Style>
-                                                <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-                                                    <Setter Property="Content" Value="Installer" />
-                                                    <Setter Property="Padding" Value="12,6" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsInstalling}" Value="True">
-                                                            <Setter Property="Content" Value="Installation…" />
-                                                            <Setter Property="IsEnabled" Value="False" />
-                                                        </DataTrigger>
-                                                        <DataTrigger Binding="{Binding IsInstalled}" Value="True">
-                                                            <Setter Property="Content" Value="Installée" />
-                                                            <Setter Property="IsEnabled" Value="False" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
-                                        <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                        <CheckBox DockPanel.Dock="Right" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsEnabled}"
+                                                  VerticalAlignment="Center" ToolTip="Activer / désactiver" />
+                                        <!-- WebView2 has no extension toolbar: these reach the extension's own UI. -->
+                                        <Button DockPanel.Dock="Right" Content="Ouvrir" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="6,0,6,0"
+                                                VerticalAlignment="Center" Command="{Binding OpenPopupCommand}"
+                                                Visibility="{Binding HasPopup, Converter={StaticResource BoolToVis}}" />
+                                        <Button DockPanel.Dock="Right" Content="Réglages" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="6,0,0,0"
+                                                VerticalAlignment="Center" Command="{Binding OpenOptionsCommand}"
+                                                Visibility="{Binding HasOptions, Converter={StaticResource BoolToVis}}" />
+                                        <Image DockPanel.Dock="Left" Source="{Binding IconPath}" Width="28" Height="28" Margin="0,0,12,0"
+                                               VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                        <StackPanel VerticalAlignment="Center" Margin="0,0,8,0">
+                                            <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12"
                                                        Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,3,0,0" />
                                         </StackPanel>
@@ -67,8 +71,20 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="INSTALLÉES" Style="{StaticResource SectionLabel}" Margin="2,14,0,8" />
-                    <ItemsControl ItemsSource="{Binding Extensions}">
+                    <TextBlock Text="AUTRES EXTENSIONS" Style="{StaticResource SectionLabel}" Margin="2,14,0,8" />
+                    <TextBlock Text="Aucune pour l'instant." Foreground="{DynamicResource TextTertiaryBrush}" FontSize="12" Margin="2,0,0,8">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Others.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Others}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border Background="{DynamicResource SurfaceBrush}" CornerRadius="12" Padding="14,10" Margin="0,0,0,8">
@@ -79,8 +95,6 @@
                                                 Command="{Binding RemoveCommand}" ToolTip="Supprimer">
                                             <Path Data="{StaticResource IconTrash}" Style="{StaticResource VectorIcon}" Width="14" Height="14" />
                                         </Button>
-                                        <!-- Extensions with a manifest-declared popup get "Ouvrir": WebView2 has no
-                                             extension toolbar, so this is the only way to reach that UI. -->
                                         <Button DockPanel.Dock="Right" Content="Ouvrir" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="6,0,0,0"
                                                 Command="{Binding OpenPopupCommand}"
                                                 Visibility="{Binding HasPopup, Converter={StaticResource BoolToVis}}" />
@@ -88,7 +102,9 @@
                                         <Button DockPanel.Dock="Right" Content="Localiser…" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="6,0,0,0"
                                                 Click="OnLocateExtensionFolderClick"
                                                 Visibility="{Binding NeedsFolderLocation, Converter={StaticResource BoolToVis}}" />
-                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="SemiBold" />
+                                        <Image DockPanel.Dock="Left" Source="{Binding IconPath}" Width="20" Height="20" Margin="0,0,10,0"
+                                               VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                                        <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" FontWeight="SemiBold" />
                                     </DockPanel>
                                 </Border>
                             </DataTemplate>

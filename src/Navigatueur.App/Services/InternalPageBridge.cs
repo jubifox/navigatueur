@@ -177,6 +177,7 @@ public static class InternalPageBridge
                 revealDelay = ui.RevealDelayMilliseconds,
                 hideDelay = ui.HideDelayMilliseconds,
                 triggerSize = ui.EdgeTriggerSize,
+                sidebarTriggerSize = ui.SidebarEdgeTriggerSize,
                 animations = ui.AreAnimationsEnabled,
                 panelEffects = ui.ArePanelEffectsEnabled,
             },
@@ -292,6 +293,9 @@ public static class InternalPageBridge
             case "interface.triggerSize" when AsDouble(value) is { } size:
                 AppServices.Interface.Update(s => s.EdgeTriggerSize = (int)size);
                 break;
+            case "interface.sidebarTriggerSize" when AsDouble(value) is { } sideSize:
+                AppServices.Interface.Update(s => s.SidebarEdgeTriggerSize = (int)sideSize);
+                break;
             case "interface.animations" when AsBool(value) is { } animations:
                 AppServices.Interface.Update(s => s.AreAnimationsEnabled = animations);
                 break;
@@ -383,6 +387,9 @@ public static class InternalPageBridge
             case "extensions.open":
                 shell?.Execute(ShellCommandIds.OpenExtensions);
                 break;
+            case "codec.hevc.store":
+                OpenHevcCodecInStore();
+                break;
             case "shortcuts.resetAll":
                 AppServices.Shortcuts.ResetAll();
                 break;
@@ -391,6 +398,20 @@ public static class InternalPageBridge
                 Directory.CreateDirectory(folder);
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
                 break;
+        }
+    }
+
+    /// <summary>Microsoft's "HEVC Video Extensions" Store page: the Store app, or its web page when the app can't be opened.</summary>
+    private static void OpenHevcCodecInStore()
+    {
+        const string productId = "9NMZLZ57R3T7";
+        try
+        {
+            Process.Start(new ProcessStartInfo($"ms-windows-store://pdp/?ProductId={productId}") { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            AppServices.TabManager.OpenTab($"https://apps.microsoft.com/detail/{productId}");
         }
     }
 

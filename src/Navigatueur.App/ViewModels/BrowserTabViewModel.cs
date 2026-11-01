@@ -141,6 +141,11 @@ public partial class BrowserTabViewModel : ObservableObject
             title = host;
         }
 
+        // Same idea for the icon: the site's last known favicon, so a tab that
+        // has never been loaded in this session still shows it.
+        _faviconSite = FaviconCache.KeyFor(initialUrl);
+        favicon = FaviconCache.TryGet(initialUrl);
+
         _tabManager = tabManager;
 
         _onNavigationStarting = OnNavigationStarting;
@@ -164,7 +169,11 @@ public partial class BrowserTabViewModel : ObservableObject
                 SiteAccentColorHex = null;
             }
         };
-        _onSourceChanged = (_, _) => AddressBarText = _coreWebView2?.Source ?? AddressBarText;
+        _onSourceChanged = (_, _) =>
+        {
+            AddressBarText = _coreWebView2?.Source ?? AddressBarText;
+            OnSiteMaybeChanged(AddressBarText);
+        };
         _onDocumentTitleChanged = (_, _) =>
             Title = string.IsNullOrWhiteSpace(_coreWebView2?.DocumentTitle)
                 ? AddressBarText
@@ -382,41 +391,53 @@ public partial class BrowserTabViewModel : ObservableObject
         IsLoading = false;
         IsPlayingAudio = false;
         SiteAccentColorHex = null;
-        Favicon = null;
+
+        // The favicon deliberately stays: an unloaded tab keeps showing its site's icon.
+    }
+
+    /// <summary>Host the current <see cref="Favicon"/> belongs to — when the tab moves to another site, the old icon must go.</summary>
+    private string? _faviconSite;
+
+    private void OnSiteMaybeChanged(string url)
+    {
+        var site = FaviconCache.KeyFor(url);
+        if (string.Equals(site, _faviconSite, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _faviconSite = site;
+        Favicon = FaviconCache.TryGet(url);
     }
 
     private async Task RefreshFaviconAsync()
     {
-        if (_coreWebView2 is null)
+        if (_coreWebView2 is not { } core)
         {
             return;
         }
 
         try
         {
-            using var stream = await _coreWebView2.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png);
-            if (stream.Length == 0)
+            var source = core.Source;
+            using var stream = await core.GetFaviconAsync(CoreWebView2FaviconImageFormat.Png);
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            var png = memory.ToArray();
+
+            // Empty while a page is still starting up (e.g. right after an unloaded
+            // tab comes back): keep the icon already shown rather than flashing a globe.
+            if (png.Length == 0 || _coreWebView2 != core)
             {
-                Favicon = null;
                 return;
             }
 
-            using var memory = new MemoryStream();
-            await stream.CopyToAsync(memory);
-            memory.Position = 0;
-
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.StreamSource = memory;
-            bitmap.EndInit();
-            bitmap.Freeze();
-            Favicon = bitmap;
+            _faviconSite = FaviconCache.KeyFor(source);
+            Favicon = _tabManager.IsPrivate ? FaviconCache.Decode(png) : FaviconCache.Store(source, png);
         }
         catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or System.Runtime.InteropServices.COMException or NotSupportedException)
         {
-            // Missing/unsupported favicon format for this page — not worth surfacing.
-            Favicon = null;
+            // Missing/unsupported favicon format for this page — keep whatever is shown.
         }
     }
 

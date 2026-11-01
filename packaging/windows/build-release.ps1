@@ -22,7 +22,9 @@
 #>
 param(
     [string] $FixedRuntimeCab,
-    [switch] $SkipInstaller
+    [switch] $SkipInstaller,
+    # Offline builds only: the app then downloads its built-in extensions on first start.
+    [switch] $SkipExtensions
 )
 
 $ErrorActionPreference = 'Stop'
@@ -35,6 +37,38 @@ if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
 dotnet publish (Join-Path $root 'src\Navigatueur.App\Navigatueur.App.csproj') `
     -c Release -r win-x64 --self-contained true -o $publishDir
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
+
+if (-not $SkipExtensions) {
+    # The extensions that are part of Navigatueur ship with it: their packages go
+    # next to the app (publish\app\Extensions), where BuiltInExtensions installs
+    # them from on first start and updates installed copies from. Same catalog
+    # as the app reads. Each is downloaded from its authors' own release, and a
+    # package whose checksum doesn't match stops the build.
+    Write-Host '==> Bundling the built-in extensions'
+    $catalogPath = Join-Path $root 'src\Navigatueur.App\Resources\Extensions\builtin-extensions.json'
+    # The catalog has // comment lines, which Windows PowerShell's ConvertFrom-Json rejects.
+    $catalog = (Get-Content $catalogPath -Encoding UTF8 | Where-Object { $_ -notmatch '^\s*//' }) -join "`n" | ConvertFrom-Json
+    $packagesDir = Join-Path $publishDir 'Extensions'
+    New-Item -ItemType Directory -Force -Path $packagesDir | Out-Null
+
+    $previousProgress = $ProgressPreference
+    $ProgressPreference = 'SilentlyContinue'
+    try {
+        # Web Store entries (webStoreId) may not be redistributed: the app installs those itself.
+        foreach ($extension in $catalog.extensions | Where-Object { -not $_.webStoreId }) {
+            $target = Join-Path $packagesDir $extension.package
+            Invoke-WebRequest $extension.url -OutFile $target -UseBasicParsing
+            $hash = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -ne $extension.sha256) {
+                throw "$($extension.name): checksum mismatch (got $hash, expected $($extension.sha256))"
+            }
+            Write-Host "    $($extension.name) $($extension.version)"
+        }
+    }
+    finally {
+        $ProgressPreference = $previousProgress
+    }
+}
 
 if ($FixedRuntimeCab) {
     if (-not (Test-Path $FixedRuntimeCab)) { throw "CAB not found: $FixedRuntimeCab" }

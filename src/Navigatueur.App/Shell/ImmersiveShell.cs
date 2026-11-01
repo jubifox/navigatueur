@@ -369,15 +369,16 @@ public sealed class ImmersiveShell
         }
 
         var current = _settings.Current;
-        var trigger = current.EdgeTriggerSize * scale;
+        var topTrigger = current.EdgeTriggerSize * scale;
+        var sideTrigger = current.SidebarEdgeTriggerSize * scale;
         var revealEnabled = current.IsEdgeRevealEnabled && overWindow;
 
         var withinX = cursor.X >= topLeft.X && cursor.X < bottomRight.X;
         var withinY = cursor.Y >= topLeft.Y && cursor.Y < bottomRight.Y;
-        var inTopZone = revealEnabled && withinX && cursor.Y >= topLeft.Y && cursor.Y < topLeft.Y + trigger;
+        var inTopZone = revealEnabled && withinX && cursor.Y >= topLeft.Y && cursor.Y < topLeft.Y + topTrigger;
         var inSideZone = revealEnabled && withinY && (current.SidebarSideValue == PanelSide.Left
-            ? cursor.X >= topLeft.X && cursor.X < topLeft.X + trigger
-            : cursor.X < bottomRight.X && cursor.X >= bottomRight.X - trigger);
+            ? cursor.X >= topLeft.X && cursor.X < topLeft.X + sideTrigger
+            : cursor.X < bottomRight.X && cursor.X >= bottomRight.X - sideTrigger);
 
         var buttonDown = NativeMethods.IsAnyMouseButtonDown();
         var now = _clock.Elapsed;

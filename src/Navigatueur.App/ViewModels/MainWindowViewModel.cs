@@ -50,6 +50,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     public DownloadManagerService Downloads => AppServices.Downloads;
 
+    /// <summary>Extensions for the toolbar's menu — none in a private window, which doesn't run them.</summary>
+    public ExtensionService Extensions => AppServices.Extensions;
+
     public ObservableCollection<Bookmark> Bookmarks => AppServices.Bookmarks.Bookmarks;
 
     public bool IsPrivate { get; }

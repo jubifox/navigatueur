@@ -13,4 +13,7 @@ public sealed class SessionGroupState
     public string ColorHex { get; set; } = string.Empty;
 
     public bool IsCollapsed { get; set; }
+
+    /// <summary>Glyph shown inside the group's folder icon — one of GroupIcons' keys, empty for a plain folder.</summary>
+    public string Icon { get; set; } = string.Empty;
 }

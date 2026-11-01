@@ -64,6 +64,13 @@ public sealed class WebView2EnvironmentService
         }
     }
 
+    /// <summary>
+    /// Work that must be over before the engine starts — it reads extension
+    /// files when it starts, so updating the built-in extensions' files has to
+    /// happen first (see BuiltInExtensions.UpgradeInstalledCopies, started by App).
+    /// </summary>
+    public static Task StartupWork { get; set; } = Task.CompletedTask;
+
     public Task<CoreWebView2Environment> GetEnvironmentAsync()
     {
         // A failed attempt (no runtime yet) isn't cached: installing the runtime then opening a tab works without a restart.
@@ -72,7 +79,22 @@ public sealed class WebView2EnvironmentService
             _environmentTask = null;
         }
 
-        return _environmentTask ??= CoreWebView2Environment.CreateAsync(
+        return _environmentTask ??= CreateEnvironmentAsync();
+    }
+
+    private async Task<CoreWebView2Environment> CreateEnvironmentAsync()
+    {
+        try
+        {
+            await StartupWork;
+        }
+        catch (Exception ex)
+        {
+            // Never keep the browser from starting over it.
+            CrashLog.Write("Préparation des extensions intégrées", ex);
+        }
+
+        return await CoreWebView2Environment.CreateAsync(
             browserExecutableFolder: BrowserExecutableFolder,
             userDataFolder: _userDataFolder,
             options: new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true });

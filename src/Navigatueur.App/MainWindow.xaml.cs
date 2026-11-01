@@ -800,6 +800,7 @@ public partial class MainWindow : Window, IShellCommands
             Name = group.Name,
             ColorHex = group.ColorHex,
             IsCollapsed = group.IsCollapsed,
+            Icon = group.Icon,
         }).ToList();
 
         settings.Tabs = _tabManager.Tabs.Select(tab => new SessionTabState
