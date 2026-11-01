@@ -13,20 +13,42 @@ namespace Navigatueur.App.Services;
 /// msedgewebview2.exe on the machine — avoids counting RAM used by other,
 /// unrelated WebView2-based apps that might happen to be running alongside
 /// this one.
+///
+/// Only runs while something is showing the figure (the toolbar menu): a WMI
+/// query every few seconds for the whole session cost CPU for a number
+/// nobody was looking at most of the time.
 /// </summary>
 public partial class MemoryMonitorService : ObservableObject
 {
     private readonly DispatcherTimer _timer;
+    private int _watchers;
 
     [ObservableProperty]
     private long usedMegabytes;
 
     public MemoryMonitorService()
     {
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         _timer.Tick += async (_, _) => await RefreshAsync();
-        _timer.Start();
-        _ = RefreshAsync();
+    }
+
+    public void BeginWatching()
+    {
+        _watchers++;
+        if (_watchers == 1)
+        {
+            _timer.Start();
+            _ = RefreshAsync();
+        }
+    }
+
+    public void EndWatching()
+    {
+        _watchers = Math.Max(0, _watchers - 1);
+        if (_watchers == 0)
+        {
+            _timer.Stop();
+        }
     }
 
     private async Task RefreshAsync()

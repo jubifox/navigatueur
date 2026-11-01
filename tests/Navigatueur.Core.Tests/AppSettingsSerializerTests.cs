@@ -37,6 +37,69 @@ public class AppSettingsSerializerTests
         Assert.Equal(original.WindowTop, roundTripped.WindowTop);
     }
 
+    /// <summary>A settings.json written by v0.17.2: removed keys (address bar position/size) and no "Interface" object.</summary>
+    [Fact]
+    public void Deserialize_LegacyV017File_KeepsDataAndAppliesNewDefaults()
+    {
+        const string legacy = """
+            {
+              "HomePageUrl": "https://navigatueur.home/index.html",
+              "WindowWidth": 1500,
+              "Tabs": [ { "Url": "https://example.com", "GroupId": null, "IsPinned": true } ],
+              "ActiveTabIndex": 0,
+              "ThemeMode": "Light",
+              "AccentColorHex": "#E04F4F",
+              "SearchEngine": "DuckDuckGo",
+              "AddressBarPosition": "Sidebar",
+              "AddressBarSize": "Large",
+              "IsCursorTrailEnabled": false
+            }
+            """;
+
+        var settings = AppSettingsSerializer.Deserialize(legacy);
+
+        Assert.Equal(1500, settings.WindowWidth);
+        Assert.Single(settings.Tabs);
+        Assert.True(settings.Tabs[0].IsPinned);
+        Assert.Equal("Light", settings.ThemeMode);
+        Assert.Equal("DuckDuckGo", settings.SearchEngine);
+        Assert.False(settings.IsCursorTrailEnabled);
+        Assert.NotNull(settings.Interface);
+        Assert.Equal(InterfaceMode.Immersive, settings.Interface.ModeValue);
+        Assert.False(settings.Interface.HasSeenIntro);
+        Assert.Equal(StartupBehaviors.RestoreSession, settings.StartupBehavior);
+        Assert.True(settings.IsAdBlockEnabled);
+    }
+
+    [Fact]
+    public void Deserialize_ExplicitNulls_AreRepaired()
+    {
+        var settings = AppSettingsSerializer.Deserialize("""{ "Interface": null, "Tabs": null, "ShortcutOverrides": null, "StartupBehavior": "Whatever", "MaxLiveTabs": 0 }""");
+
+        Assert.NotNull(settings.Interface);
+        Assert.NotNull(settings.Tabs);
+        Assert.NotNull(settings.ShortcutOverrides);
+        Assert.Equal(StartupBehaviors.RestoreSession, settings.StartupBehavior);
+        Assert.Equal(1, settings.MaxLiveTabs);
+    }
+
+    [Fact]
+    public void Serialize_ThenDeserialize_RoundTripsInterfaceAndShortcuts()
+    {
+        var original = new AppSettings();
+        original.Interface.Mode = "Custom";
+        original.Interface.SidebarSide = "Right";
+        original.Interface.RevealDelayMilliseconds = 300;
+        original.ShortcutOverrides["tab.new"] = "Ctrl+Shift+K";
+
+        var roundTripped = AppSettingsSerializer.Deserialize(AppSettingsSerializer.Serialize(original));
+
+        Assert.Equal(InterfaceMode.Custom, roundTripped.Interface.ModeValue);
+        Assert.Equal(PanelSide.Right, roundTripped.Interface.SidebarSideValue);
+        Assert.Equal(300, roundTripped.Interface.RevealDelayMilliseconds);
+        Assert.Equal("Ctrl+Shift+K", roundTripped.ShortcutOverrides["tab.new"]);
+    }
+
     [Fact]
     public void Default_HomePageUrl_IsNotEmpty()
     {

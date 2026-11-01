@@ -4,7 +4,7 @@ namespace Navigatueur.Core.Settings;
 
 public sealed class AppSettings
 {
-    public string HomePageUrl { get; set; } = "https://navigatueur.home/index.html";
+    public string HomePageUrl { get; set; } = InternalPages.NewTabUrl;
 
     public double WindowWidth { get; set; } = 1280;
 
@@ -13,6 +13,8 @@ public sealed class AppSettings
     public double? WindowLeft { get; set; }
 
     public double? WindowTop { get; set; }
+
+    public bool WasMaximized { get; set; }
 
     /// <summary>
     /// Tab groups from the previous session, restored before <see cref="Tabs"/>
@@ -40,15 +42,38 @@ public sealed class AppSettings
     /// <summary>Local copy under the app's own data folder — never the original user-picked path, which could move or be deleted.</summary>
     public string? NewTabBackgroundImagePath { get; set; }
 
-    /// <summary>Which search engine the new-tab page's search box uses. One of the ids in SearchEngineService.Engines.</summary>
+    /// <summary>Which search engine both the address bar and the new-tab page's search box use. One of the ids in SearchEngineService.Engines.</summary>
     public string SearchEngine { get; set; } = "Bing";
 
-    /// <summary>Where the address bar is docked: "Top" (toolbar, default), "Bottom", or "Sidebar" (top of the vertical tab column).</summary>
-    public string AddressBarPosition { get; set; } = "Top";
-
-    /// <summary>Address bar text/padding scale: "Small", "Normal", or "Large".</summary>
-    public string AddressBarSize { get; set; } = "Normal";
-
-    /// <summary>Whether the accent-colored cursor trail effect is shown, both in the app's own chrome and injected into web pages.</summary>
+    /// <summary>Whether the accent-colored cursor trail effect is shown, both in the app's own panels and drawn inside web pages.</summary>
     public bool IsCursorTrailEnabled { get; set; } = true;
+
+    /// <summary>Toolbar/tab-column display mode, edge-reveal timings and panel styling.</summary>
+    public InterfaceSettings Interface { get; set; } = new();
+
+    /// <summary>"RestoreSession" (reopen the previous session's tabs) or "HomePage" (start on a single home page tab).</summary>
+    public string StartupBehavior { get; set; } = StartupBehaviors.RestoreSession;
+
+    public bool IsAdBlockEnabled { get; set; } = true;
+
+    public bool IsPhishingProtectionEnabled { get; set; } = true;
+
+    /// <summary>Background tabs idle for this long are unloaded to free memory. 0 disables idle suspension.</summary>
+    public int TabSuspendMinutes { get; set; } = 15;
+
+    /// <summary>How many non-pinned tabs may keep a live web engine at once before the least recently used one is unloaded.</summary>
+    public int MaxLiveTabs { get; set; } = 3;
+
+    /// <summary>
+    /// User-chosen keyboard shortcuts: command id (see Shortcuts.ShortcutCommands)
+    /// to gesture text such as "Ctrl+Shift+T". An empty string disables that
+    /// command's shortcut. Commands absent from this map keep their defaults.
+    /// </summary>
+    public Dictionary<string, string> ShortcutOverrides { get; set; } = new();
+}
+
+public static class StartupBehaviors
+{
+    public const string RestoreSession = "RestoreSession";
+    public const string HomePage = "HomePage";
 }

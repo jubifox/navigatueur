@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nouvel onglet</title>
+<link rel="stylesheet" href="nv.css" />
+<style>
+  body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Soft accent glow from the top: color without clutter. */
+  .glow {
+    position: fixed;
+    inset: -30vh -10vw auto;
+    height: 70vh;
+    background: radial-gradient(ellipse at 50% 0%, var(--accent-soft), transparent 70%);
+    pointer-events: none;
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 0.4s var(--ease);
+  }
+
+  .backdrop.visible {
+    opacity: 1;
+  }
+
+  .backdrop.visible::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.55));
+  }
+
+  main {
+    position: relative;
+    width: min(640px, calc(100vw - 48px));
+    margin-top: -6vh;
+  }
+
+  .wordmark {
+    margin: 0 0 28px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.32em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 56px;
+    padding: 0 18px;
+    border-radius: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+
+  .search:focus-within {
+    border-color: var(--accent);
+    box-shadow: var(--shadow), 0 0 0 4px var(--accent-soft);
+  }
+
+  .search .icon {
+    width: 18px;
+    height: 18px;
+    color: var(--text-3);
+  }
+
+  .search input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--text);
+    font: 16px var(--font);
+  }
+
+  .search input::placeholder {
+    color: var(--text-3);
+  }
+
+  .favorites {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 8px;
+    margin-top: 28px;
+  }
+
+  .tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 6px 10px;
+    border-radius: 14px;
+    color: var(--text-2);
+    text-decoration: none !important;
+    transition: background-color 0.15s var(--ease), transform 0.15s var(--ease);
+  }
+
+  .tile:hover {
+    background: var(--surface);
+    color: var(--text);
+    transform: translateY(-2px);
+  }
+
+  .tile .avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 17px;
+  }
+
+  .tile span {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+  }
+
+  .tile .remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+  }
+
+  .tile:hover .remove {
+    opacity: 1;
+  }
+
+  .private-note {
+    display: none;
+    gap: 14px;
+    margin-top: 28px;
+    padding: 16px 18px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  [data-private="true"] .private-note {
+    display: flex;
+  }
+
+  .private-note .icon {
+    width: 22px;
+    height: 22px;
+    color: var(--accent);
+  }
+
+  .private-note p {
+    margin: 4px 0 0;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+
+  .hint {
+    position: fixed;
+    bottom: 22px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-3);
+    opacity: 0;
+    transition: opacity 0.6s var(--ease) 0.4s;
+  }
+
+  .hint.visible {
+    opacity: 1;
+  }
+
+  .hint kbd {
+    font-size: 11px;
+    padding: 1px 6px;
+  }
+</style>
+</head>
+<body data-page="newtab">
+  <div class="backdrop" id="backdrop"></div>
+  <div class="glow"></div>
+
+  <main>
+    <h1 class="wordmark">Navigatueur</h1>
+
+    <form class="search" id="searchForm" action="https://www.bing.com/search" method="get" target="_top" role="search">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+      <input id="query" type="text" name="q" autocomplete="off" autofocus
+             placeholder="Rechercher sur le web ou saisir une adresse" aria-label="Rechercher" />
+    </form>
+
+    <section class="private-note" aria-label="Navigation privée">
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11c-1.5 0-2.5.5-3 2M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2zM6 11c1.5 0 2.5.5 3 2" /></svg>
+      <div>
+        <strong>Navigation privée</strong>
+        <p>Historique, cookies et cache de cette fenêtre sont effacés à sa fermeture. Vos favoris et téléchargements restent.</p>
+      </div>
+    </section>
+
+    <nav class="favorites" id="favorites" aria-label="Favoris"></nav>
+  </main>
+
+  <p class="hint" id="hint"></p>
+
+  <script src="nv.js"></script>
+  <script>
+    (function () {
+      var form = document.getElementById("searchForm");
+      var query = document.getElementById("query");
+      var favorites = document.getElementById("favorites");
+      var backdrop = document.getElementById("backdrop");
+      var hint = document.getElementById("hint");
+
+      // Through the app when connected: the same logic as the address bar
+      // decides between "address" and "search", with the chosen engine.
+      form.addEventListener("submit", function (event) {
+        var text = query.value.trim();
+        if (!text) {
+          event.preventDefault();
+          return;
+        }
+        if (nv.connected) {
+          event.preventDefault();
+          nv.send("nv:navigate", { input: text });
+        }
+      });
+
+      function renderFavorites(list) {
+        favorites.innerHTML = "";
+        (list || []).slice(0, 8).forEach(function (bookmark) {
+          var host = bookmark.host || bookmark.url;
+          var tile = document.createElement("a");
+          tile.className = "tile";
+          tile.href = bookmark.url;
+          tile.title = bookmark.title + "\n" + bookmark.url;
+          tile.innerHTML =
+            '<div class="avatar" style="background:' + nv.hue(host) + '">' + nv.escape(host.charAt(0)) + "</div>" +
+            "<span>" + nv.escape(bookmark.title || host) + "</span>" +
+            '<button class="icon-btn remove" title="Retirer des favoris" aria-label="Retirer des favoris">' +
+            '<svg class="icon" viewBox="0 0 24 24" style="width:11px;height:11px"><path d="M18 6 6 18M6 6l12 12" /></svg></button>';
+          tile.querySelector(".remove").addEventListener("click", function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            nv.send("nv:bookmark.remove", { url: bookmark.url });
+          });
+          favorites.appendChild(tile);
+        });
+      }
+
+      function renderHint(state) {
+        var ui = state.interface || {};
+        if (!ui.toolbarAutoHide && !ui.sidebarAutoHide) {
+          hint.classList.remove("visible");
+          return;
+        }
+        var side = ui.sidebarSide === "Right" ? "droit" : "gauche";
+        var parts = [];
+        if (ui.toolbarAutoHide) parts.push("bord supérieur : barre d'outils");
+        if (ui.sidebarAutoHide) parts.push("bord " + side + " : onglets");
+        hint.innerHTML = nv.escape(parts.join(" · ")) + " · <kbd>Ctrl</kbd> + <kbd>L</kbd> adresse";
+        hint.classList.add("visible");
+      }
+
+      nv.on("nv:state", function (state) {
+        var navigation = state.navigation || {};
+        if (navigation.searchAction) form.action = navigation.searchAction;
+
+        var background = state.theme && state.theme.newTabBackground;
+        if (background) {
+          backdrop.style.backgroundImage = 'url("' + background + '")';
+          backdrop.classList.add("visible");
+        } else {
+          backdrop.classList.remove("visible");
+          backdrop.style.backgroundImage = "";
+        }
+
+        renderFavorites(state.bookmarks);
+        renderHint(state);
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,5 +1,11 @@
 # Navigatueur — version Linux
 
+> **Portage optionnel.** La version Windows (`src/`) est la cible principale de
+> Navigatueur. Ce portage date d'avant la refonte de l'interface (v0.18) : il
+> n'en a ni l'interface immersive, ni les favoris, ni la page de paramètres, il
+> n'est pas compilé par l'intégration continue et n'est pas tenu à jour au même
+> rythme. Il reste dans le dépôt tant qu'il compile ; il pourra être retiré.
+
 Portage Linux de Navigatueur, distribué en **AppImage** : un fichier unique,
 exécutable sans droits administrateur, sans installateur et sans paquet système.
 

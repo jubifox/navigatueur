@@ -13,11 +13,16 @@ public partial class DownloadManagerService : ObservableObject
     [ObservableProperty]
     private bool hasActiveDownloads;
 
+    /// <summary>Anything downloaded this session — the toolbar only shows its downloads button from then on.</summary>
+    [ObservableProperty]
+    private bool hasDownloads;
+
     public void TrackDownload(CoreWebView2DownloadOperation operation)
     {
         var item = new DownloadItemViewModel(operation);
         Downloads.Insert(0, item);
         item.PropertyChanged += (_, _) => RefreshHasActiveDownloads();
+        HasDownloads = true;
         RefreshHasActiveDownloads();
     }
 

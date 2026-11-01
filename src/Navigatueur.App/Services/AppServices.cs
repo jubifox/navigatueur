@@ -37,6 +37,12 @@ public static class AppServices
 
     public static HistoryService History { get; } = new();
 
+    public static BookmarkService Bookmarks { get; } = new();
+
+    public static InterfaceSettingsService Interface { get; } = new(CurrentSettings);
+
+    public static ShortcutService Shortcuts { get; } = new(CurrentSettings);
+
     public static TabManagerService TabManager { get; } = new(CurrentSettings);
 
     /// <summary>

@@ -7,17 +7,27 @@ using CommunityToolkit.Mvvm.Input;
 using Navigatueur.App.Models;
 using Navigatueur.App.ViewModels;
 using Navigatueur.Core.Settings;
+using Navigatueur.Core.Tabs;
 
 namespace Navigatueur.App.Services;
 
 public partial class TabManagerService : ObservableObject
 {
-    private const int MaxLiveTabs = 3;
-    private static readonly TimeSpan IdleSuspendThreshold = TimeSpan.FromMinutes(15);
-
     private readonly AppSettings _settings;
     private readonly List<BrowserTabViewModel> _liveOrder = new();
     private readonly DispatcherTimer _idleTimer;
+    private readonly ClosedTabHistory _closedTabs = new();
+
+    /// <summary>
+    /// Memory limits are global preferences, read from the app-wide settings
+    /// even for a private or secondary window whose own AppSettings is a
+    /// throwaway copy.
+    /// </summary>
+    private static int MaxLiveTabs => Math.Max(1, AppServices.CurrentSettings.MaxLiveTabs);
+
+    private static TimeSpan? IdleSuspendThreshold => AppServices.CurrentSettings.TabSuspendMinutes > 0
+        ? TimeSpan.FromMinutes(AppServices.CurrentSettings.TabSuspendMinutes)
+        : null;
 
     public ObservableCollection<BrowserTabViewModel> Tabs { get; } = new();
 
@@ -85,7 +95,7 @@ public partial class TabManagerService : ObservableObject
         };
         RebuildSavedGroupMenuItems();
 
-        if (_settings.Tabs.Count > 0)
+        if (_settings.Tabs.Count > 0 && _settings.StartupBehavior != StartupBehaviors.HomePage)
         {
             RestoreSession(_settings.Groups, _settings.Tabs, _settings.ActiveTabIndex);
         }
@@ -100,12 +110,54 @@ public partial class TabManagerService : ObservableObject
 
     public BrowserTabViewModel OpenTab(string? url = null)
     {
-        var tab = new BrowserTabViewModel(url ?? _settings.HomePageUrl, this);
+        var tab = new BrowserTabViewModel(url ?? HomePageUrl, this);
         AttachTabHandlers(tab);
         Tabs.Add(tab);
         ActivateTab(tab);
         TabOpened?.Invoke(tab);
         return tab;
+    }
+
+    /// <summary>Opens a link next to the current tab without switching to it (middle-click / Ctrl+click on a favorite or history entry).</summary>
+    public BrowserTabViewModel OpenBackgroundTab(string url)
+    {
+        var tab = new BrowserTabViewModel(url, this) { IsSuspended = true };
+        AttachTabHandlers(tab);
+        var index = ActiveTab is null ? Tabs.Count : Tabs.IndexOf(ActiveTab) + 1;
+        Tabs.Insert(Math.Clamp(index, 0, Tabs.Count), tab);
+        return tab;
+    }
+
+    /// <summary>The home page everywhere, private windows included: the global setting, not this manager's (possibly throwaway) copy.</summary>
+    private static string HomePageUrl =>
+        string.IsNullOrWhiteSpace(AppServices.CurrentSettings.HomePageUrl)
+            ? Core.InternalPages.NewTabUrl
+            : AppServices.CurrentSettings.HomePageUrl;
+
+    public bool CanReopenClosedTab => _closedTabs.Count > 0;
+
+    /// <summary>Ctrl+Shift+T: brings back the most recently closed tab at its old position, in its old group if that still exists.</summary>
+    public void ReopenClosedTab()
+    {
+        if (!_closedTabs.TryPop(out var record) || record is null)
+        {
+            return;
+        }
+
+        var tab = new BrowserTabViewModel(record.Url, this)
+        {
+            GroupId = record.GroupId is { } groupId && Groups.Any(g => g.Id == groupId) ? groupId : null,
+        };
+        tab.IsPinned = record.IsPinned;
+        if (!string.IsNullOrWhiteSpace(record.Title))
+        {
+            tab.Title = record.Title;
+        }
+
+        AttachTabHandlers(tab);
+        Tabs.Insert(Math.Clamp(record.Index, 0, Tabs.Count), tab);
+        ActivateTab(tab);
+        OnPropertyChanged(nameof(CanReopenClosedTab));
     }
 
     /// <summary>Cycles the active tab forward (+1) or backward (-1) through <see cref="Tabs"/>, wrapping around. Used by Ctrl+Tab / Ctrl+Shift+Tab.</summary>
@@ -173,7 +225,7 @@ public partial class TabManagerService : ObservableObject
         var restoredTabs = new List<BrowserTabViewModel>();
         foreach (var tabState in tabStates)
         {
-            var url = IsLegacyBingHomePage(tabState.Url) ? _settings.HomePageUrl : tabState.Url;
+            var url = IsLegacyBingHomePage(tabState.Url) ? HomePageUrl : tabState.Url;
             var tab = new BrowserTabViewModel(url, this) { IsSuspended = true };
             if (tabState.GroupId is { } persistedGroupId && groupIdMap.TryGetValue(persistedGroupId, out var group))
             {
@@ -181,6 +233,10 @@ public partial class TabManagerService : ObservableObject
             }
 
             tab.IsPinned = tabState.IsPinned;
+            if (!string.IsNullOrWhiteSpace(tabState.Title))
+            {
+                tab.Title = tabState.Title;
+            }
 
             AttachTabHandlers(tab);
             Tabs.Add(tab);
@@ -226,6 +282,9 @@ public partial class TabManagerService : ObservableObject
         {
             return;
         }
+
+        _closedTabs.Push(new ClosedTabRecord(tab.AddressBarText, tab.Title, index, tab.GroupId, tab.IsPinned));
+        OnPropertyChanged(nameof(CanReopenClosedTab));
 
         Tabs.RemoveAt(index);
         _liveOrder.Remove(tab);
@@ -504,7 +563,7 @@ public partial class TabManagerService : ObservableObject
                 continue;
             }
 
-            if (now - tab.LastActivatedAt > IdleSuspendThreshold)
+            if (IdleSuspendThreshold is { } threshold && now - tab.LastActivatedAt > threshold)
             {
                 _liveOrder.RemoveAt(i);
                 tab.IsSuspended = true;

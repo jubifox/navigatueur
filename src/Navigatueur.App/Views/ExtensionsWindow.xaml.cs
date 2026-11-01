@@ -22,6 +22,8 @@ public partial class ExtensionsWindow : Window
         }
     }
 
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
     private void UpdateError()
     {
         var error = AppServices.Extensions.LastError;

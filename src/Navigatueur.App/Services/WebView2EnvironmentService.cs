@@ -3,8 +3,24 @@ using Microsoft.Web.WebView2.Core;
 
 namespace Navigatueur.App.Services;
 
+/// <summary>
+/// Creates the Chromium engine every tab runs on.
+///
+/// Navigatueur ships its own copy of the engine: a WebView2 "Fixed Version"
+/// runtime unpacked into <see cref="BundledRuntimeFolder"/> by the release
+/// build (packaging/windows/build-release.ps1). With it, the browser no
+/// longer depends on the separately installed "Microsoft Edge WebView2
+/// Runtime" — one application, one install. Development builds (and any
+/// install without that folder) fall back to the system runtime.
+///
+/// Chromium still runs its usual helper processes (browser, renderers, GPU,
+/// network): that split is its security sandbox, not a second application.
+/// </summary>
 public sealed class WebView2EnvironmentService
 {
+    /// <summary>Folder, next to Navigatueur.exe, holding the bundled engine (msedgewebview2.exe and its files).</summary>
+    public static string BundledRuntimeFolder { get; } = Path.Combine(AppContext.BaseDirectory, "WebView2Runtime");
+
     /// <summary>
     /// Unique per-app profile folder. Also used by <see cref="MemoryMonitorService"/>
     /// to recognize which "msedgewebview2.exe" processes on the machine belong to
@@ -28,10 +44,36 @@ public sealed class WebView2EnvironmentService
         _userDataFolder = userDataFolder;
     }
 
+    public static bool UsesBundledRuntime => File.Exists(Path.Combine(BundledRuntimeFolder, "msedgewebview2.exe"));
+
+    private static string? BrowserExecutableFolder => UsesBundledRuntime ? BundledRuntimeFolder : null;
+
+    /// <summary>Engine version in use, or null when no runtime can be found at all.</summary>
+    public string? RuntimeVersion
+    {
+        get
+        {
+            try
+            {
+                return CoreWebView2Environment.GetAvailableBrowserVersionString(BrowserExecutableFolder);
+            }
+            catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or FileNotFoundException or ArgumentException)
+            {
+                return null;
+            }
+        }
+    }
+
     public Task<CoreWebView2Environment> GetEnvironmentAsync()
     {
+        // A failed attempt (no runtime yet) isn't cached: installing the runtime then opening a tab works without a restart.
+        if (_environmentTask is { IsFaulted: true } or { IsCanceled: true })
+        {
+            _environmentTask = null;
+        }
+
         return _environmentTask ??= CoreWebView2Environment.CreateAsync(
-            browserExecutableFolder: null,
+            browserExecutableFolder: BrowserExecutableFolder,
             userDataFolder: _userDataFolder,
             options: new CoreWebView2EnvironmentOptions { AreBrowserExtensionsEnabled = true });
     }

@@ -1,0 +1,175 @@
+# Windows is Navigatueur's primary platform: every change is built, unit
+# tested, and the real app is started on a Windows machine and driven like a
+# user would (tests/windows/smoke.ps1). The Linux port (linux/) is optional
+# and isn't built here.
+name: Windows
+
+on:
+  push:
+    branches-ignore:
+      - ci/windows-captures
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "Navigatueur.sln"
+      - "installer/**"
+      - "packaging/windows/**"
+      - ".github/workflows/windows.yml"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and unit tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build
+        run: dotnet build Navigatueur.sln -c Release
+
+      - name: Core unit tests
+        run: dotnet test tests/Navigatueur.Core.Tests -c Release --no-build
+
+      - name: XAML resource references
+        run: python tests/xaml/check-resources.py
+
+  internal-pages:
+    name: Internal pages (Chromium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+      - name: Page tests
+        run: node tests/pages/pages.test.js
+
+  installer:
+    name: Installer (build, silent install, start, uninstall)
+    runs-on: windows-latest
+    needs: build-and-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Make sure Inno Setup is available
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build the installer, exactly as a release does
+        shell: pwsh
+        run: ./packaging/windows/build-release.ps1
+
+      - name: Install it silently, start the installed app, uninstall
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem publish/installer -Filter 'NavigatueurSetup-*.exe' | Select-Object -First 1
+          Write-Host "Installer: $($setup.Name), $([math]::Round($setup.Length / 1MB)) Mo"
+          $dir = Join-Path $env:RUNNER_TEMP 'Navigatueur-install'
+          Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait
+
+          $exe = Join-Path $dir 'Navigatueur.exe'
+          if (-not (Test-Path $exe)) { throw 'Navigatueur.exe was not installed' }
+          foreach ($page in 'index.html', 'settings.html', 'history.html', 'nv.css', 'nv.js', 'settings.js') {
+            if (-not (Test-Path (Join-Path $dir "Resources\Pages\$page"))) { throw "Missing installed page: $page" }
+          }
+
+          New-Item -ItemType Directory -Force "$env:APPDATA\Navigatueur" | Out-Null
+          '{ "Interface": { "HasSeenIntro": true } }' | Set-Content "$env:APPDATA\Navigatueur\settings.json"
+          $app = Start-Process $exe -PassThru
+          Start-Sleep -Seconds 20
+          $app.Refresh()
+          if ($app.HasExited) { throw "The installed app exited (code $($app.ExitCode))" }
+          if ($app.MainWindowHandle -eq 0) { throw 'The installed app has no window' }
+          Stop-Process -Id $app.Id -Force
+          Start-Sleep -Seconds 2
+
+          $crash = "$env:LOCALAPPDATA\Navigatueur\crash.log"
+          if (Test-Path $crash) { Get-Content $crash; throw 'The installed app wrote crash.log' }
+
+          Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          Write-Host 'Install, start and uninstall OK'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: publish/installer/*.exe
+
+  ui-smoke:
+    name: Real app on Windows (smoke test + screenshots)
+    runs-on: windows-latest
+    needs: build-and-test
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build the app
+        run: dotnet build src/Navigatueur.App -c Release
+
+      - name: Ensure the WebView2 runtime is present
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $version = (Get-ItemProperty $key -ErrorAction SilentlyContinue).pv
+          if ($version) {
+            Write-Host "WebView2 runtime $version already installed"
+          } else {
+            Invoke-WebRequest 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile "$env:RUNNER_TEMP\webview2.exe"
+            Start-Process "$env:RUNNER_TEMP\webview2.exe" -ArgumentList '/silent', '/install' -Wait
+            Write-Host "Installed WebView2 runtime $((Get-ItemProperty $key).pv)"
+          }
+
+      - name: Drive the app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem src/Navigatueur.App/bin/Release -Recurse -Filter Navigatueur.exe | Select-Object -First 1
+          pwsh -File tests/windows/smoke.ps1 -Exe $exe.FullName -OutDir captures
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-captures
+          path: captures
+          if-no-files-found: ignore
+
+      # The same screenshots on a throwaway branch, so they can be viewed
+      # straight from the repository (raw.githubusercontent.com) as well.
+      - name: Publish screenshots to ci/windows-captures
+        if: always() && github.event_name == 'push'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path captures)) { exit 0 }
+          Set-Location captures
+          "Captures Windows — run $env:GITHUB_RUN_ID, commit $env:GITHUB_SHA ($env:GITHUB_REF_NAME)" | Set-Content README.md
+          git init -q -b ci/windows-captures
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Windows smoke captures for $env:GITHUB_SHA"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci/windows-captures

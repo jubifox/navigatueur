@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Paramètres</title>
+<link rel="stylesheet" href="nv.css" />
+<style>
+  body {
+    display: grid;
+    grid-template-columns: 248px minmax(0, 1fr);
+    min-height: 100vh;
+  }
+
+  /* ---------------------------------------------------------- navigation */
+
+  nav.sections {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 36px 14px 24px;
+    border-right: 1px solid var(--border);
+    background: var(--panel);
+  }
+
+  nav.sections h1 {
+    margin: 0 10px 22px;
+    font-size: 22px;
+  }
+
+  nav.sections a {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    height: 36px;
+    padding: 0 10px;
+    margin-bottom: 2px;
+    border-radius: 9px;
+    color: var(--text-2);
+    text-decoration: none;
+    transition: background-color 0.12s var(--ease), color 0.12s var(--ease);
+  }
+
+  nav.sections a:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  nav.sections a.current {
+    background: var(--surface-active);
+    color: var(--text);
+  }
+
+  nav.sections a.current .icon {
+    color: var(--accent);
+  }
+
+  /* ------------------------------------------------------------- content */
+
+  main {
+    padding: 36px 48px 80px;
+    max-width: 860px;
+  }
+
+  section {
+    margin-bottom: 40px;
+    scroll-margin-top: 24px;
+  }
+
+  section > h2 {
+    font-size: 20px;
+    margin-bottom: 4px;
+  }
+
+  section > p.lead {
+    margin: 0 0 18px;
+    color: var(--text-2);
+  }
+
+  .card {
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .card + .card {
+    margin-top: 14px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    min-height: 58px;
+    padding: 12px 20px;
+  }
+
+  .row + .row {
+    border-top: 1px solid var(--border);
+  }
+
+  .row .text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .row .text strong {
+    display: block;
+    font-weight: 600;
+  }
+
+  .row .text small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+
+  .row.disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .range {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .range output {
+    min-width: 64px;
+    text-align: right;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Display mode cards with a miniature of each layout. */
+  .modes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .mode {
+    padding: 12px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease), transform 0.15s var(--ease);
+  }
+
+  .mode:hover {
+    transform: translateY(-1px);
+    background: var(--surface-hover);
+  }
+
+  .mode[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .mode strong {
+    display: block;
+    margin-top: 10px;
+  }
+
+  .mode small {
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .mini {
+    position: relative;
+    height: 78px;
+    border-radius: 8px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .mini::before,
+  .mini::after {
+    content: "";
+    position: absolute;
+    background: var(--text-3);
+    opacity: 0.55;
+  }
+
+  .mini::before {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 12px;
+  }
+
+  .mini::after {
+    left: 0;
+    top: 12px;
+    bottom: 0;
+    width: 22px;
+  }
+
+  .mini.immersive::before {
+    left: 18%;
+    right: 18%;
+    height: 9px;
+    border-radius: 0 0 4px 4px;
+    opacity: 0.25;
+  }
+
+  .mini.immersive::after {
+    top: 22%;
+    bottom: 22%;
+    width: 10px;
+    border-radius: 0 4px 4px 0;
+    opacity: 0.25;
+  }
+
+  .mini.custom::after {
+    top: 12px;
+    width: 10px;
+    border-radius: 0 4px 4px 0;
+    opacity: 0.25;
+  }
+
+  .swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.12s var(--ease);
+  }
+
+  .swatch:hover {
+    transform: scale(1.1);
+  }
+
+  .swatch[aria-pressed="true"] {
+    border-color: var(--text);
+    box-shadow: inset 0 0 0 2px var(--panel);
+  }
+
+  input[type="color"] {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: none;
+    cursor: pointer;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .chip:hover {
+    background: var(--surface-hover);
+  }
+
+  .chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .home-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  .home-row .field {
+    width: 300px;
+  }
+
+  /* Shortcuts */
+  .shortcut-group h3 {
+    margin: 0;
+    padding: 14px 20px 6px;
+    font-size: 12px;
+    font-family: var(--font);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+  }
+
+  .keys {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+
+  .keys .none {
+    color: var(--text-3);
+    font-size: 12.5px;
+  }
+
+  .row.capturing {
+    background: var(--accent-soft);
+  }
+
+  .capture-hint {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .error {
+    color: var(--danger);
+    font-size: 12.5px;
+  }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translate(-50%, 20px);
+    padding: 10px 16px;
+    border-radius: 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s var(--ease), transform 0.2s var(--ease);
+  }
+
+  .toast.visible {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  @media (max-width: 860px) {
+    body {
+      grid-template-columns: 1fr;
+    }
+
+    nav.sections {
+      position: static;
+      height: auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      border-right: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav.sections h1 {
+      width: 100%;
+    }
+
+    main {
+      padding: 24px;
+    }
+
+    .modes {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body data-page="settings">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.5" /><circle cx="17.5" cy="10.5" r="1.5" /><circle cx="8.5" cy="7.5" r="1.5" /><circle cx="6.5" cy="12.5" r="1.5" /><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" /></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36z" /></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" /></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="m12 14 4-4M3.34 19a10 10 0 1 1 17.32 0" /></symbol>
+    <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" /></symbol>
+    <symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" /></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></symbol>
+  </svg>
+
+  <nav class="sections" aria-label="Sections">
+    <h1>Paramètres</h1>
+    <a href="#interface"><svg class="icon"><use href="#i-layout" /></svg>Interface</a>
+    <a href="#appearance"><svg class="icon"><use href="#i-palette" /></svg>Apparence</a>
+    <a href="#navigation"><svg class="icon"><use href="#i-compass" /></svg>Navigation</a>
+    <a href="#privacy"><svg class="icon"><use href="#i-shield" /></svg>Confidentialité</a>
+    <a href="#performance"><svg class="icon"><use href="#i-gauge" /></svg>Performances</a>
+    <a href="#shortcuts"><svg class="icon"><use href="#i-keyboard" /></svg>Raccourcis</a>
+    <a href="#extensions"><svg class="icon"><use href="#i-puzzle" /></svg>Extensions</a>
+    <a href="#about"><svg class="icon"><use href="#i-info" /></svg>À propos</a>
+  </nav>
+
+  <main>
+    <!-- ============================================================ Interface -->
+    <section id="interface">
+      <h2>Interface</h2>
+      <p class="lead">Où vivent la barre d'outils et les onglets, et comment ils apparaissent.</p>
+
+      <div class="card">
+        <div class="modes" role="group" aria-label="Mode d'affichage">
+          <button class="mode" data-mode="Immersive" aria-pressed="false">
+            <div class="mini immersive"></div>
+            <strong>Immersif</strong>
+            <small>Tout est masqué, les outils apparaissent au bord de l'écran.</small>
+          </button>
+          <button class="mode" data-mode="Classic" aria-pressed="false">
+            <div class="mini"></div>
+            <strong>Classique</strong>
+            <small>Barre d'outils et onglets toujours visibles.</small>
+          </button>
+          <button class="mode" data-mode="Custom" aria-pressed="false">
+            <div class="mini custom"></div>
+            <strong>Personnalisé</strong>
+            <small>Vous choisissez pour chaque élément.</small>
+          </button>
+        </div>
+        <div class="row" data-custom>
+          <div class="text"><strong>Masquer automatiquement la barre d'outils</strong><small>Elle apparaît en approchant la souris du bord supérieur.</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.toolbarAutoHide" /><span></span></label>
+        </div>
+        <div class="row" data-custom>
+          <div class="text"><strong>Masquer automatiquement la colonne d'onglets</strong><small>Elle apparaît en approchant la souris de son bord.</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.sidebarAutoHide" /><span></span></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Côté de la colonne d'onglets</strong></div>
+          <div class="segmented" data-key="interface.sidebarSide">
+            <button data-value="Left" aria-pressed="false">Gauche</button>
+            <button data-value="Right" aria-pressed="false">Droite</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Largeur de la colonne</strong><small>Se règle aussi en tirant le bord de la colonne.</small></div>
+          <div class="range"><input type="range" min="200" max="440" step="10" data-key="interface.sidebarWidth" data-unit=" px" /><output></output></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Apparition au survol des bords</strong><small>Désactivée, les panneaux masqués ne s'ouvrent qu'au clavier (Ctrl+L, Ctrl+Maj+A).</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.edgeReveal" /><span></span></label>
+        </div>
+        <div class="row" data-reveal>
+          <div class="text"><strong>Délai d'apparition</strong><small>Temps d'immobilité au bord avant l'ouverture — évite les apparitions accidentelles.</small></div>
+          <div class="range"><input type="range" min="0" max="1000" step="25" data-key="interface.revealDelay" data-unit=" ms" /><output></output></div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Délai de disparition</strong><small>Temps avant fermeture une fois la souris partie.</small></div>
+          <div class="range"><input type="range" min="0" max="3000" step="50" data-key="interface.hideDelay" data-unit=" ms" /><output></output></div>
+        </div>
+        <div class="row" data-reveal>
+          <div class="text"><strong>Zone de déclenchement</strong><small>Épaisseur de la bande, le long du bord, qui compte comme « au bord ».</small></div>
+          <div class="range"><input type="range" min="1" max="30" step="1" data-key="interface.triggerSize" data-unit=" px" /><output></output></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================== Apparence -->
+    <section id="appearance">
+      <h2>Apparence</h2>
+      <p class="lead">Couleurs, mouvements et fonds.</p>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Thème</strong></div>
+          <div class="segmented" data-key="theme.mode">
+            <button data-value="Dark" aria-pressed="false">Sombre</button>
+            <button data-value="Light" aria-pressed="false">Clair</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Couleur d'accent</strong><small>États actifs, focus, chargement.</small></div>
+          <div class="swatches" id="swatches">
+            <input type="color" id="customAccent" title="Couleur personnalisée" aria-label="Couleur personnalisée" />
+          </div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Animations</strong><small>Transitions des panneaux et de l'interface.</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.animations" /><span></span></label>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Effets de profondeur</strong><small>Ombres et coins arrondis des panneaux flottants. Désactivés, les panneaux sont aussi rendus sans transparence au prochain démarrage.</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.panelEffects" /><span></span></label>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Traînée du curseur</strong><small>Une fine traînée de la couleur d'accent suit la souris.</small></div>
+          <label class="switch"><input type="checkbox" data-key="appearance.cursorTrail" /><span></span></label>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Fond de la page nouvel onglet</strong></div>
+          <button class="btn" data-action="background.newtab.choose">Choisir une image…</button>
+          <button class="btn ghost" data-action="background.newtab.reset">Retirer</button>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Fond des panneaux</strong><small>Image discrète derrière la barre d'outils et les onglets.</small></div>
+          <button class="btn" data-action="background.chrome.choose">Choisir une image…</button>
+          <button class="btn ghost" data-action="background.chrome.reset">Retirer</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================== Navigation -->
+    <section id="navigation">
+      <h2>Navigation</h2>
+      <p class="lead">Démarrage, page d'accueil et recherche.</p>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Au démarrage</strong></div>
+          <div class="segmented" data-key="startup.behavior">
+            <button data-value="RestoreSession" aria-pressed="false">Reprendre la session</button>
+            <button data-value="HomePage" aria-pressed="false">Page d'accueil</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Page d'accueil</strong><small>Aussi utilisée pour les nouveaux onglets. Vide : la page Navigatueur.</small></div>
+          <form class="home-row" id="homeForm">
+            <input class="field" id="homePage" type="text" placeholder="Page Navigatueur" aria-label="Page d'accueil" />
+            <button class="btn" type="submit">Enregistrer</button>
+          </form>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Moteur de recherche</strong><small>Pour la barre d'adresse et la page nouvel onglet.</small></div>
+          <div class="chips" id="engines"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================== Confidentialité -->
+    <section id="privacy">
+      <h2>Confidentialité et sécurité</h2>
+      <p class="lead">Ce que Navigatueur bloque, et ce qu'il retient.</p>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Bloqueur de publicités et traqueurs</strong><small>Désactivable site par site depuis le menu d'un onglet.</small></div>
+          <label class="switch"><input type="checkbox" data-key="privacy.adBlock" /><span></span></label>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Protection contre l'hameçonnage</strong><small>Avertit avant d'ouvrir un site frauduleux connu.</small></div>
+          <label class="switch"><input type="checkbox" data-key="privacy.phishing" /><span></span></label>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Autorisations des sites</strong><small id="permissionsText">—</small></div>
+          <button class="btn" data-action="permissions.clear">Réinitialiser</button>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Historique</strong><small>Les fenêtres privées n'enregistrent jamais d'historique.</small></div>
+          <a class="btn ghost" href="history.html">Ouvrir</a>
+          <button class="btn danger" id="clearHistory">Effacer…</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================== Performances -->
+    <section id="performance">
+      <h2>Performances</h2>
+      <p class="lead">Les onglets en arrière-plan sont mis en veille pour libérer la mémoire ; ils se rechargent quand vous y revenez.</p>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Mettre en veille les onglets inactifs après</strong></div>
+          <select class="field" data-key="perf.suspendMinutes">
+            <option value="0">Jamais</option>
+            <option value="5">5 minutes</option>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">1 heure</option>
+          </select>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Onglets actifs en même temps</strong><small>Au-delà, le moins récemment utilisé est mis en veille (sauf onglets épinglés ou qui jouent du son).</small></div>
+          <select class="field" data-key="perf.maxLiveTabs">
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="6">6</option>
+            <option value="8">8</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================== Raccourcis -->
+    <section id="shortcuts">
+      <h2>Raccourcis clavier</h2>
+      <p class="lead">Fonctionnent partout, même interface masquée. Cliquez sur « Modifier » puis appuyez sur la nouvelle combinaison.</p>
+      <div class="card" id="shortcutList"></div>
+      <div class="card" id="fixedShortcuts"></div>
+      <p><button class="btn ghost" data-action="shortcuts.resetAll">Rétablir tous les raccourcis par défaut</button></p>
+    </section>
+
+    <!-- =========================================================== Extensions -->
+    <section id="extensions">
+      <h2>Extensions</h2>
+      <p class="lead">Navigatueur charge de vraies extensions Chrome (uBlock Origin, SponsorBlock…).</p>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Gérer les extensions</strong><small>Installer, activer, ouvrir leurs réglages.</small></div>
+          <button class="btn" data-action="extensions.open">Ouvrir</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================ À propos -->
+    <section id="about">
+      <h2>À propos</h2>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Navigatueur <span id="version"></span></strong><small id="updateText">—</small></div>
+          <button class="btn" id="checkUpdates" data-action="update.check">Vérifier les mises à jour</button>
+          <button class="btn primary" id="installUpdate" data-action="update.install" hidden>Installer</button>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Moteur Web</strong><small id="engineText">—</small></div>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Données de l'application</strong><small>Réglages, historique, favoris, profil du moteur Web.</small></div>
+          <button class="btn" data-action="data.openFolder">Ouvrir le dossier</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="nv.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

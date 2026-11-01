@@ -32,20 +32,40 @@ public partial class BrowserTabViewModel : ObservableObject
     private string addressBarText;
 
     /// <summary>
-    /// What the address bar actually shows: blank on the internal new-tab
-    /// page (navigatueur.home/...) instead of exposing that implementation
-    /// detail, matching how real browsers show an empty omnibox on their own
-    /// new-tab page. Reading/writing this just proxies to <see cref="AddressBarText"/>.
+    /// What the address bar actually shows: blank on the new-tab page and a
+    /// short navigatueur:// address on the other internal pages, instead of
+    /// the https://navigatueur.home/... URL they're really served from (see
+    /// InternalPages). Writing it stores the raw text; <see cref="Navigate()"/>
+    /// maps navigatueur:// addresses back.
     /// </summary>
     public string AddressBarDisplayText
     {
-        get => AddressBarText.StartsWith("https://navigatueur.home/", StringComparison.OrdinalIgnoreCase)
-            ? string.Empty
-            : AddressBarText;
+        get => InternalPages.ToDisplayUrl(AddressBarText);
         set => AddressBarText = value;
     }
 
-    partial void OnAddressBarTextChanged(string value) => OnPropertyChanged(nameof(AddressBarDisplayText));
+    partial void OnAddressBarTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(AddressBarDisplayText));
+        OnPropertyChanged(nameof(IsSecure));
+        OnPropertyChanged(nameof(IsInternalPage));
+        RefreshBookmarkState();
+    }
+
+    /// <summary>The page is served over HTTPS (lock icon). Internal pages count as secure too.</summary>
+    public bool IsSecure => AddressBarText.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsInternalPage => InternalPages.IsInternal(AddressBarText);
+
+    [ObservableProperty]
+    private bool isBookmarked;
+
+    /// <summary>Re-checks the star after a navigation or a change made from another tab/window.</summary>
+    public void RefreshBookmarkState() => IsBookmarked = AppServices.Bookmarks.IsBookmarked(AddressBarText);
+
+    /// <summary>The page itself requested fullscreen (a video's fullscreen button) — the window follows it.</summary>
+    [ObservableProperty]
+    private bool isPageFullScreen;
 
     [ObservableProperty]
     private bool isLoading;
@@ -107,11 +127,20 @@ public partial class BrowserTabViewModel : ObservableObject
     private readonly EventHandler<object> _onDocumentTitleChanged;
     private readonly EventHandler<object> _onIsDocumentPlayingAudioChanged;
     private readonly EventHandler<object> _onFaviconChanged;
+    private readonly EventHandler<object> _onContainsFullScreenElementChanged;
 
     public BrowserTabViewModel(string initialUrl, TabManagerService tabManager)
     {
         InitialUrl = initialUrl;
         addressBarText = initialUrl;
+
+        // Until the page reports its own title: the site's name, so an unloaded
+        // (restored, background) tab isn't just another "Nouvel onglet".
+        if (!InternalPages.IsInternal(initialUrl) && UrlHelper.TryGetDisplayHost(initialUrl) is { } host)
+        {
+            title = host;
+        }
+
         _tabManager = tabManager;
 
         _onNavigationStarting = OnNavigationStarting;
@@ -142,6 +171,7 @@ public partial class BrowserTabViewModel : ObservableObject
                 : _coreWebView2!.DocumentTitle;
         _onIsDocumentPlayingAudioChanged = (_, _) => IsPlayingAudio = _coreWebView2?.IsDocumentPlayingAudio ?? false;
         _onFaviconChanged = (_, _) => _ = RefreshFaviconAsync();
+        _onContainsFullScreenElementChanged = (_, _) => IsPageFullScreen = _coreWebView2?.ContainsFullScreenElement ?? false;
 
         _tabManager.Groups.CollectionChanged += OnGroupsCollectionChanged;
         RefreshContextMenuItems();
@@ -178,7 +208,8 @@ public partial class BrowserTabViewModel : ObservableObject
             return;
         }
 
-        if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) && AppServices.PhishingProtection.IsPhishing(uri.Host))
+        if (AppServices.CurrentSettings.IsPhishingProtectionEnabled &&
+            Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) && AppServices.PhishingProtection.IsPhishing(uri.Host))
         {
             e.Cancel = true;
             IsLoading = false;
@@ -297,11 +328,31 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.IsDocumentPlayingAudioChanged += _onIsDocumentPlayingAudioChanged;
         IsPlayingAudio = _coreWebView2.IsDocumentPlayingAudio;
         _coreWebView2.FaviconChanged += _onFaviconChanged;
+        _coreWebView2.ContainsFullScreenElementChanged += _onContainsFullScreenElementChanged;
         _ = RefreshFaviconAsync();
     }
 
     /// <summary>Exposed so MainWindow can focus the actual embedded browser HWND before sending it Ctrl+F (native Chromium find-in-page).</summary>
     public WebView2? WebViewControl => _zoomHost;
+
+    /// <summary>Live engine for this tab, or null while suspended — used by the internal-pages bridge to reply to the page.</summary>
+    public CoreWebView2? CoreWebView => _coreWebView2;
+
+    /// <summary>Set when the page should take the keyboard as soon as its engine exists (focus requested while the tab was still unloaded).</summary>
+    public bool WantsFocus { get; set; }
+
+    /// <summary>Gives keyboard focus to the page (after the address bar, a menu, a tab switch…), now or once it has loaded.</summary>
+    public void FocusPage()
+    {
+        if (_zoomHost is null)
+        {
+            WantsFocus = true;
+            return;
+        }
+
+        WantsFocus = false;
+        _zoomHost.Focus();
+    }
 
     /// <summary>The WPF-level zoom control lives on the hosting WebView2 control, not CoreWebView2 — kept separate so this ViewModel only needs the Core surface for everything else.</summary>
     public void AttachZoomHost(WebView2 webView) => _zoomHost = webView;
@@ -325,7 +376,9 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.DocumentTitleChanged -= _onDocumentTitleChanged;
         _coreWebView2.IsDocumentPlayingAudioChanged -= _onIsDocumentPlayingAudioChanged;
         _coreWebView2.FaviconChanged -= _onFaviconChanged;
+        _coreWebView2.ContainsFullScreenElementChanged -= _onContainsFullScreenElementChanged;
         _coreWebView2 = null;
+        IsPageFullScreen = false;
         IsLoading = false;
         IsPlayingAudio = false;
         SiteAccentColorHex = null;
@@ -399,14 +452,30 @@ public partial class BrowserTabViewModel : ObservableObject
     private void TogglePictureInPicture() => _ = _coreWebView2?.ExecuteScriptAsync(TogglePictureInPictureScript);
 
     [RelayCommand]
-    private void Navigate()
+    private void Navigate() => NavigateTo(AddressBarText);
+
+    /// <summary>
+    /// Navigates to whatever was typed: a URL, a navigatueur:// address, or
+    /// a search with the engine chosen in Settings. A suspended tab (no live
+    /// engine yet) just remembers the target and loads it when it resumes.
+    /// </summary>
+    public void NavigateTo(string input)
     {
-        if (_coreWebView2 is null || string.IsNullOrWhiteSpace(AddressBarText))
+        var url = UrlHelper.Normalize(input, AppServices.SearchEngine.CurrentEngine.QueryUrlPrefix);
+        if (string.IsNullOrEmpty(url))
         {
             return;
         }
 
-        _coreWebView2.Navigate(UrlHelper.Normalize(AddressBarText));
+        AddressBarText = url;
+        if (_coreWebView2 is not null)
+        {
+            _coreWebView2.Navigate(url);
+        }
+        else
+        {
+            IsSuspended = false;
+        }
     }
 
     private const string ThemeColorScript =

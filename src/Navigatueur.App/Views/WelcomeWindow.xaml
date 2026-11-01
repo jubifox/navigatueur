@@ -1,43 +1,84 @@
 <Window x:Class="Navigatueur.App.Views.WelcomeWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Bienvenue" Width="380" Height="340"
-        Background="{DynamicResource ChromeBackgroundBrush}"
-        WindowStartupLocation="CenterScreen" ResizeMode="NoResize" WindowStyle="None">
-    <Border BorderBrush="{DynamicResource ChromeBorderBrush}" BorderThickness="1">
-        <StackPanel Margin="20">
-            <TextBlock Text="Bienvenue sur Navigatueur" FontWeight="Bold" FontSize="16"
-                       Foreground="{DynamicResource ChromeTextBrush}" Margin="0,0,0,4" />
-            <TextBlock Text="Choisis ton moteur de recherche par défaut (modifiable plus tard dans les paramètres)."
-                       Foreground="{DynamicResource ChromeTextBrush}" Opacity="0.75" FontSize="12"
-                       TextWrapping="Wrap" Margin="0,0,0,16" />
+        Title="Bienvenue dans Navigatueur" Width="560" SizeToContent="Height"
+        Background="Transparent" AllowsTransparency="True" WindowStyle="None"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False">
+    <!--
+      First launch, and the first launch after the interface redesign: the
+      browser now starts with every interface hidden, so this is where people
+      learn the two gestures — and can pick the classic layout instead.
+    -->
+    <Border Margin="16" CornerRadius="16" Background="{DynamicResource PanelBrush}"
+            BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="1"
+            MouseLeftButtonDown="OnBackgroundMouseDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="28" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
+        </Border.Effect>
+        <StackPanel Margin="28,26,28,24">
+            <TextBlock Text="Bienvenue dans Navigatueur" FontFamily="{DynamicResource UiDisplayFontFamily}"
+                       FontSize="22" FontWeight="SemiBold" Margin="0,0,0,6" />
+            <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,20"
+                       Text="Le site occupe tout l'écran. Les outils n'apparaissent que lorsque vous en avez besoin." />
 
-            <ItemsControl x:Name="EngineList" Margin="0,0,0,20">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Padding="10,8" Margin="0,0,8,8" Click="OnEngineClick" Tag="{Binding Id}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                            <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="{Binding DisplayName}" Foreground="{DynamicResource ChromeTextBrush}" />
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- The two gestures -->
+            <Grid Margin="0,0,0,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" CornerRadius="12" Background="{DynamicResource SurfaceBrush}" Padding="14">
+                    <StackPanel>
+                        <Border Height="54" CornerRadius="6" Background="{DynamicResource WindowBackgroundBrush}" Margin="0,0,0,10" ClipToBounds="True">
+                            <Border Height="10" VerticalAlignment="Top" CornerRadius="0,0,4,4" Background="{DynamicResource AccentBrush}" Margin="10,0" />
+                        </Border>
+                        <TextBlock Text="Bord supérieur" FontWeight="SemiBold" Margin="0,0,0,2" />
+                        <TextBlock Text="Barre d'adresse et outils" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" CornerRadius="12" Background="{DynamicResource SurfaceBrush}" Padding="14">
+                    <StackPanel>
+                        <Border Height="54" CornerRadius="6" Background="{DynamicResource WindowBackgroundBrush}" Margin="0,0,0,10" ClipToBounds="True">
+                            <Border Width="16" HorizontalAlignment="Left" CornerRadius="0,4,4,0" Background="{DynamicResource AccentBrush}" Margin="0,8" />
+                        </Border>
+                        <TextBlock Text="Bord gauche" FontWeight="SemiBold" Margin="0,0,0,2" />
+                        <TextBlock Text="Vos onglets (côté réglable)" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="12" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
-            <Button Content="Continuer" Padding="12,8" HorizontalAlignment="Right"
-                    Background="{DynamicResource AccentBrush}" Foreground="White" Click="OnContinueClick" />
+            <TextBlock Text="Disposition" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,18">
+                <RadioButton x:Name="ImmersiveChoice" GroupName="Mode" IsChecked="True" Style="{StaticResource ChoiceChip}" Margin="0,0,8,0"
+                             Content="Immersive (recommandée)" />
+                <RadioButton x:Name="ClassicChoice" GroupName="Mode" Style="{StaticResource ChoiceChip}"
+                             Content="Classique, toujours visible" />
+            </StackPanel>
+
+            <StackPanel x:Name="EngineSection">
+                <TextBlock Text="Moteur de recherche" Style="{StaticResource SectionLabel}" Margin="0,0,0,8" />
+                <ItemsControl x:Name="EngineList" Margin="0,0,0,18">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <RadioButton GroupName="Engine" Style="{StaticResource ChoiceChip}" Margin="0,0,8,8"
+                                         Content="{Binding DisplayName}" Tag="{Binding Id}"
+                                         IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Commencer" Style="{StaticResource PrimaryButton}" Click="OnContinueClick" IsDefault="True" />
+                <TextBlock VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" TextWrapping="Wrap" Margin="0,0,16,0"
+                           Text="Ctrl+L : barre d'adresse · Ctrl+Maj+A : onglets · F11 : plein écran. Tout se règle ensuite dans Paramètres." />
+            </DockPanel>
         </StackPanel>
     </Border>
 </Window>

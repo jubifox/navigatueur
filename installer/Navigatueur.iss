@@ -1,9 +1,11 @@
 ; Inno Setup script for Navigatueur — builds a standard Windows installer
 ; (Start Menu shortcut, optional desktop shortcut, clean uninstall) from the
-; self-contained publish output.
+; self-contained publish output produced by packaging\windows\build-release.ps1.
+; When that build bundled the WebView2 engine (publish\app\WebView2Runtime),
+; it's installed with the app: one application, no separate runtime needed.
 
 #define MyAppName "Navigatueur"
-#define MyAppVersion "0.17.2"
+#define MyAppVersion "0.18.0"
 #define MyAppPublisher "Navigatueur"
 #define MyAppExeName "Navigatueur.exe"
 #define MyPublishDir "..\publish\app"
@@ -40,9 +42,18 @@ Name: "{group}\Désinstaller {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Chromium's sandboxed renderers (AppContainers) must be able to read the bundled engine.
+; Program Files already grants this; re-granting is harmless and covers custom install folders.
+Filename: "{sys}\icacls.exe"; Parameters: """{app}\WebView2Runtime"" /grant *S-1-15-2-1:(OI)(CI)(RX) *S-1-15-2-2:(OI)(CI)(RX) /T /Q"; Flags: runhidden; Check: HasBundledRuntime
 Filename: "{app}\{#MyAppExeName}"; Description: "Lancer {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; User data (settings, ad-block cache, WebView2 profile) lives under %LocalAppData%\Navigatueur
 ; and %AppData%\Navigatueur — intentionally NOT removed on uninstall, so a reinstall
 ; keeps the user's settings, saved groups, and permission choices.
+
+[Code]
+function HasBundledRuntime: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{app}\WebView2Runtime\msedgewebview2.exe'));
+end;
