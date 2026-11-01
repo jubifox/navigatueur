@@ -52,7 +52,6 @@
         <Setter Property="FontFamily" Value="{DynamicResource UiFontFamily}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        <Setter Property="Cursor" Value="{DynamicResource AppCursor}" />
     </Style>
 
     <!-- Keyboard focus ring: only drawn for keyboard navigation (WPF's FocusVisualStyle), never on click. -->

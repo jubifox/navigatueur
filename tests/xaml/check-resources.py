@@ -5,7 +5,7 @@ WPF resolves {StaticResource} / {DynamicResource} keys at run time: a typo
 compiles fine and only fails (StaticResource: crash; DynamicResource: silent
 fallback) when the window opens. This walks every .xaml file of the app and
 reports any key that isn't defined in the application dictionaries, in the
-file's own resources, or set from code (ThemeService, App.LoadAppCursor).
+file's own resources, or set from code (ThemeService).
 
     python3 tests/xaml/check-resources.py
 """
@@ -17,7 +17,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2] / "src" / "Navigatueur.App"
 APP_DICTIONARIES = [ROOT / "Resources" / "Theme.xaml", ROOT / "Resources" / "Icons.xaml"]
 
 # Keys written from C# rather than declared in XAML.
-CODE_DEFINED = {"AppCursor"}
+CODE_DEFINED = set()
 
 KEY_DEF = re.compile(r'x:Key="([^"{][^"]*)"')
 REFERENCE = re.compile(r"\{(StaticResource|DynamicResource)\s+([^}\s]+)\s*\}")

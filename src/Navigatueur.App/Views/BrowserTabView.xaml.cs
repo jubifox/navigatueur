@@ -33,11 +33,6 @@ public partial class BrowserTabView : UserControl
     private static readonly string WarningFolder =
         Path.Combine(AppContext.BaseDirectory, "Resources", "Warning");
 
-    private static readonly string CursorImagePath =
-        Path.Combine(AppContext.BaseDirectory, "Resources", "Cursors", "cursor.png");
-
-    private static string? _cursorImageBase64;
-
     private WebView2? _webView;
     private BrowserTabViewModel? _subscribedViewModel;
     private readonly Queue<(CoreWebView2PermissionRequestedEventArgs Args, CoreWebView2Deferral Deferral)> _pendingPermissions = new();
@@ -195,8 +190,7 @@ public partial class BrowserTabView : UserControl
     // ---------------------------------------------------------- page script
 
     /// <summary>
-    /// Injected into every page: the app's cursor, plus the accent-colored
-    /// cursor trail drawn on a click-through canvas *inside* the page. The
+    /// Injected into every page: the accent-colored cursor trail, drawn on a click-through canvas *inside* the page. The
     /// trail used to be drawn by a separate transparent window over the page,
     /// fed by one cross-process message per mouse move; drawing it in the page
     /// itself needs neither, and the canvas only exists once the trail is on
@@ -204,21 +198,6 @@ public partial class BrowserTabView : UserControl
     /// </summary>
     private static string BuildPageEnhancementScript()
     {
-        if (_cursorImageBase64 is null)
-        {
-            try
-            {
-                _cursorImageBase64 = Convert.ToBase64String(File.ReadAllBytes(CursorImagePath));
-            }
-            catch (IOException)
-            {
-                _cursorImageBase64 = string.Empty;
-            }
-        }
-
-        var cursorCss = _cursorImageBase64.Length == 0
-            ? string.Empty
-            : $"*, *::before, *::after {{ cursor: url(\"data:image/png;base64,{_cursorImageBase64}\") 2 2, auto !important; }}";
         var enabled = AppServices.Theme.IsCursorTrailEnabled ? "true" : "false";
         var accent = AppServices.Theme.AccentColorHex;
 
@@ -226,13 +205,6 @@ public partial class BrowserTabView : UserControl
             (function () {
               if (window.__navigatueurEnhanced) return;
               window.__navigatueurEnhanced = true;
-
-              var cursorCss = {{System.Text.Json.JsonSerializer.Serialize(cursorCss)}};
-              if (cursorCss) {
-                var style = document.createElement('style');
-                style.textContent = cursorCss;
-                document.documentElement.appendChild(style);
-              }
 
               var enabled = {{enabled}};
               var accent = {{System.Text.Json.JsonSerializer.Serialize(accent)}};

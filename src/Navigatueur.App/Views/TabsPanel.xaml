@@ -6,8 +6,7 @@
              xmlns:views="clr-namespace:Navigatueur.App.Views"
              x:Name="PanelRoot"
              FontFamily="{DynamicResource UiFontFamily}" FontSize="13"
-             Foreground="{DynamicResource TextBrush}"
-             Cursor="{DynamicResource AppCursor}">
+             Foreground="{DynamicResource TextBrush}">
     <!--
       The tab column. Like the toolbar it lives in its own child window over
       the page (Shell/OverlayHost); the transparent strip on its inner side is
