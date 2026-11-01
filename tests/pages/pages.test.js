@@ -36,7 +36,7 @@ function makeState(overrides = {}) {
     theme: { mode: "Dark", accent: "#4C8DFF", newTabBackground: null, hasChromeBackground: false, cursorTrail: true },
     interface: {
       mode: "Immersive", toolbarAutoHide: true, sidebarAutoHide: true, sidebarSide: "Left", sidebarWidth: 280,
-      edgeReveal: true, revealDelay: 150, hideDelay: 600, triggerSize: 6, animations: true, panelEffects: true,
+      edgeReveal: true, revealDelay: 150, hideDelay: 600, triggerSize: 6, sidebarTriggerSize: 18, animations: true, panelEffects: true,
     },
     navigation: {
       startup: "RestoreSession", homePage: "", searchEngine: "DuckDuckGo", searchAction: "https://duckduckgo.com/",
@@ -158,6 +158,8 @@ test("settings: renders every control from state", async (browser) => {
   assert.strictEqual(await page.getAttribute('[data-key="interface.sidebarSide"] [data-value="Left"]', "aria-pressed"), "true");
   assert.strictEqual(await page.inputValue('[data-key="interface.revealDelay"]'), "150");
   assert.strictEqual(await page.textContent('[data-key="interface.revealDelay"] + output'), "150 ms");
+  assert.strictEqual(await page.inputValue('[data-key="interface.sidebarTriggerSize"]'), "18");
+  assert.strictEqual(await page.textContent('[data-key="interface.sidebarTriggerSize"] + output'), "18 px");
   assert.strictEqual(await page.inputValue('[data-key="perf.suspendMinutes"]'), "15");
   assert.strictEqual(await page.getAttribute('#engines .chip[aria-pressed="true"]', "aria-pressed"), "true");
   assert.strictEqual(await page.textContent('#engines .chip[aria-pressed="true"]'), "DuckDuckGo");
@@ -189,6 +191,13 @@ test("settings: controls send the right setting keys and values", async (browser
   assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.hideDelay", value: 1200 });
   assert.strictEqual(await page.textContent('[data-key="interface.hideDelay"] + output'), "1200 ms");
 
+  await page.$eval('[data-key="interface.sidebarTriggerSize"]', (input) => {
+    input.value = "30";
+    input.dispatchEvent(new Event("input"));
+    input.dispatchEvent(new Event("change"));
+  });
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.sidebarTriggerSize", value: 30 });
+
   await page.selectOption('[data-key="perf.maxLiveTabs"]', "6");
   assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "perf.maxLiveTabs", value: 6 });
 
@@ -209,7 +218,8 @@ test("settings: controls send the right setting keys and values", async (browser
 test("settings: disabling edge reveal greys out its timing rows", async (browser) => {
   const { page } = await openPage(browser, "settings.html");
   await deliver(page, makeState({ interface: { edgeReveal: false } }));
-  assert.strictEqual(await page.locator("[data-reveal].disabled").count(), 2);
+  // Reveal delay, and both trigger zones (top bar, tab column).
+  assert.strictEqual(await page.locator("[data-reveal].disabled").count(), 3);
 });
 
 test("settings: light theme and accent are applied to the page", async (browser) => {
