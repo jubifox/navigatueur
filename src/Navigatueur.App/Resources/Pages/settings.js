@@ -135,7 +135,7 @@
       : "Non pris en charge par le moteur sur ce PC.";
     $("#hevcText").textContent = hevc
       ? "Pris en charge : les lives Twitch en 2K sont lisibles."
-      : "Codec HEVC de Windows absent : Twitch s'arrête à 1080p. Installez « Extensions vidéo HEVC » (Microsoft Store), puis redémarrez Navigatueur.";
+      : "Codec HEVC de Windows absent : Twitch s'arrête à 1080p. Installez le codec « Extensions vidéo HEVC » de Microsoft (un lecteur vidéo HEVC ne suffit pas), puis redémarrez Navigatueur.";
     $("#hevcStore").hidden = hevc;
   })();
 

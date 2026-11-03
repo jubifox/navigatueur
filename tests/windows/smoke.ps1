@@ -223,6 +223,15 @@ try {
     Start-Sleep -Milliseconds 500
     $escShot = Save-Shot 'menu-ferme-par-echap'
     Assert-Changed $menuShot $escShot 'Échap doit fermer le menu « … »'
+
+    # The bar's buttons take clicks over its full height: one at the screen's
+    # very top edge, where the toolbar is summoned, must still hit « … ».
+    Click-At ($W - 150) 1
+    Start-Sleep -Milliseconds 900
+    $edgeMenuShot = Save-Shot 'menu-outils-clic-au-bord'
+    Assert-Changed $escShot $edgeMenuShot 'un clic tout en haut de l écran doit ouvrir le menu « … »'
+    Send-Keys @($VK_ESCAPE)
+    Start-Sleep -Milliseconds 500
     Move-Mouse $cx $cy 1600
 
     Send-Keys @($VK_F11)

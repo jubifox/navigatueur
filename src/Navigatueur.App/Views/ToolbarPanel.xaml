@@ -38,7 +38,8 @@
 
                     <!-- Navigation cluster -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Focusable="False" x:Name="TabsToggleButton" Style="{StaticResource IconButton}" Tag="sidebar.toggleDock" Click="OnCommandClick"
+                        <Button Focusable="False" x:Name="TabsToggleButton" Style="{StaticResource BarIconButton}" Width="40" Padding="8,8,0,8" Margin="-8,0,0,0"
+                                Tag="sidebar.toggleDock" Click="OnCommandClick"
                                 ToolTip="Afficher ou masquer la colonne d'onglets">
                             <Path x:Name="TabsToggleIcon">
                                 <Path.Style>
@@ -57,18 +58,18 @@
                             </Path>
                         </Button>
                         <Border Width="1" Height="18" Margin="6,0" Background="{DynamicResource PanelBorderBrush}" />
-                        <Button Focusable="False" Style="{StaticResource IconButton}" Command="{Binding ActiveTab.GoBackCommand}" ToolTip="Précédent (Alt+←)">
+                        <Button Focusable="False" Style="{StaticResource BarIconButton}" Command="{Binding ActiveTab.GoBackCommand}" ToolTip="Précédent (Alt+←)">
                             <Path Data="{StaticResource IconBack}" Style="{StaticResource VectorIcon}" />
                         </Button>
-                        <Button Focusable="False" Style="{StaticResource IconButton}" Margin="2,0,0,0" Command="{Binding ActiveTab.GoForwardCommand}" ToolTip="Suivant (Alt+→)">
+                        <Button Focusable="False" Style="{StaticResource BarIconButton}" Command="{Binding ActiveTab.GoForwardCommand}" ToolTip="Suivant (Alt+→)">
                             <Path Data="{StaticResource IconForward}" Style="{StaticResource VectorIcon}" />
                         </Button>
-                        <Grid Margin="2,0,0,0">
-                            <Button Focusable="False" Style="{StaticResource IconButton}" Command="{Binding ActiveTab.ReloadCommand}" ToolTip="Actualiser (Ctrl+R)"
+                        <Grid>
+                            <Button Focusable="False" Style="{StaticResource BarIconButton}" Command="{Binding ActiveTab.ReloadCommand}" ToolTip="Actualiser (Ctrl+R)"
                                     Visibility="{Binding ActiveTab.IsLoading, Converter={StaticResource InverseBoolToVis}}">
                                 <Path Data="{StaticResource IconRefresh}" Style="{StaticResource VectorIcon}" Width="15" Height="15" />
                             </Button>
-                            <Button Focusable="False" Style="{StaticResource IconButton}" Command="{Binding ActiveTab.StopCommand}" ToolTip="Arrêter le chargement"
+                            <Button Focusable="False" Style="{StaticResource BarIconButton}" Command="{Binding ActiveTab.StopCommand}" ToolTip="Arrêter le chargement"
                                     Visibility="{Binding ActiveTab.IsLoading, Converter={StaticResource BoolToVis}}">
                                 <Path Data="{StaticResource IconClose}" Style="{StaticResource VectorIcon}" />
                             </Button>
@@ -141,7 +142,7 @@
 
                     <!-- Tools cluster -->
                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                        <Button Focusable="False" x:Name="DownloadsButton" Style="{StaticResource IconButton}" Click="OnDownloadsClick" ToolTip="Téléchargements (Ctrl+J)"
+                        <Button Focusable="False" x:Name="DownloadsButton" Style="{StaticResource BarIconButton}" Click="OnDownloadsClick" ToolTip="Téléchargements (Ctrl+J)"
                                 Visibility="{Binding Downloads.HasDownloads, Converter={StaticResource BoolToVis}}">
                             <Grid>
                                 <Path Data="{StaticResource IconDownload}" Style="{StaticResource VectorIcon}" />
@@ -149,14 +150,14 @@
                                          Visibility="{Binding Downloads.HasActiveDownloads, Converter={StaticResource BoolToVis}}" />
                             </Grid>
                         </Button>
-                        <Button Focusable="False" x:Name="BookmarksButton" Style="{StaticResource IconButton}" Margin="2,0,0,0" Click="OnBookmarksClick" ToolTip="Favoris">
+                        <Button Focusable="False" x:Name="BookmarksButton" Style="{StaticResource BarIconButton}" Click="OnBookmarksClick" ToolTip="Favoris">
                             <Path Data="{StaticResource IconBookmark}" Style="{StaticResource VectorIcon}" />
                         </Button>
-                        <Button Focusable="False" x:Name="ExtensionsButton" Style="{StaticResource IconButton}" Margin="2,0,0,0" Click="OnExtensionsClick" ToolTip="Extensions"
+                        <Button Focusable="False" x:Name="ExtensionsButton" Style="{StaticResource BarIconButton}" Click="OnExtensionsClick" ToolTip="Extensions"
                                 Visibility="{Binding IsPrivate, Converter={StaticResource InverseBoolToVis}}">
                             <Path Data="{StaticResource IconPuzzle}" Style="{StaticResource VectorIcon}" />
                         </Button>
-                        <Button Focusable="False" x:Name="MenuButton" Style="{StaticResource IconButton}" Margin="2,0,0,0" Click="OnMenuClick" ToolTip="Paramètres et outils">
+                        <Button Focusable="False" x:Name="MenuButton" Style="{StaticResource BarIconButton}" Click="OnMenuClick" ToolTip="Paramètres et outils">
                             <Button.ContextMenu>
                         <ContextMenu x:Name="MainMenu" Opened="OnMainMenuOpened" Closed="OnMainMenuClosed">
                             <MenuItem Header="Nouvel onglet" Tag="tab.new" Click="OnCommandClick">
@@ -239,10 +240,10 @@
                     <!-- Window buttons -->
                     <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                         <Border Width="1" Height="18" Margin="0,0,6,0" Background="{DynamicResource PanelBorderBrush}" />
-                        <Button Focusable="False" Style="{StaticResource CaptionButton}" Tag="window.minimize" Click="OnCommandClick" ToolTip="Réduire">
+                        <Button Focusable="False" Style="{StaticResource BarCaptionButton}" Tag="window.minimize" Click="OnCommandClick" ToolTip="Réduire">
                             <Path Data="{StaticResource IconMinimize}" Style="{StaticResource VectorIcon}" Width="12" Height="12" />
                         </Button>
-                        <Button Focusable="False" Style="{StaticResource CaptionButton}" Tag="window.maximize" Click="OnCommandClick" ToolTip="Agrandir / Restaurer">
+                        <Button Focusable="False" Style="{StaticResource BarCaptionButton}" Tag="window.maximize" Click="OnCommandClick" ToolTip="Agrandir / Restaurer">
                             <Path Width="12" Height="12">
                                 <Path.Style>
                                     <Style TargetType="Path" BasedOn="{StaticResource VectorIcon}">
@@ -259,7 +260,8 @@
                                 </Path.Style>
                             </Path>
                         </Button>
-                        <Button Focusable="False" x:Name="CloseButton" Style="{StaticResource CloseCaptionButton}" Tag="window.close" Click="OnCommandClick" ToolTip="Fermer">
+                        <Button Focusable="False" x:Name="CloseButton" Style="{StaticResource BarCloseButton}" Width="42" Padding="0,8,6,8" Margin="0,0,-6,0"
+                                Tag="window.close" Click="OnCommandClick" ToolTip="Fermer">
                             <Path Data="{StaticResource IconClose}" Style="{StaticResource VectorIcon}" Width="12" Height="12"
                                   Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
                         </Button>
@@ -353,7 +355,7 @@
 
         <!-- Favorites -->
         <Popup x:Name="BookmarksPopup" PlacementTarget="{Binding ElementName=BookmarksButton}" Placement="Bottom"
-               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-300" VerticalOffset="-4">
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-300" VerticalOffset="-12">
             <Border Style="{StaticResource PopupCard}" Width="360">
                 <DockPanel>
                     <DockPanel DockPanel.Dock="Top" Margin="6,4,2,6">
@@ -412,7 +414,7 @@
 
         <!-- Extensions: the core ones first. A click opens the extension's own menu (or its settings). -->
         <Popup x:Name="ExtensionsPopup" PlacementTarget="{Binding ElementName=ExtensionsButton}" Placement="Bottom"
-               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-300" VerticalOffset="-4">
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-300" VerticalOffset="-12">
             <Border Style="{StaticResource PopupCard}" Width="340">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Extensions" FontWeight="SemiBold" FontSize="14" Margin="6,4,6,8" />
@@ -485,7 +487,7 @@
 
         <!-- Downloads -->
         <Popup x:Name="DownloadsPopup" PlacementTarget="{Binding ElementName=DownloadsButton}" Placement="Bottom"
-               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-260" VerticalOffset="-4">
+               AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade" HorizontalOffset="-260" VerticalOffset="-12">
             <Border Style="{StaticResource PopupCard}" Width="320">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="Téléchargements" FontWeight="SemiBold" FontSize="14" Margin="6,4,6,8" />

@@ -60,7 +60,10 @@
         </Style>
 
         <!-- Shown on hover (or when active) only, so a long list stays calm. -->
-        <Style x:Key="RowHoverOnly" TargetType="Button" BasedOn="{StaticResource SmallIconButton}">
+        <Style x:Key="RowHoverOnly" TargetType="Button" BasedOn="{StaticResource ChipIconButton}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="2,6" />
             <Setter Property="Visibility" Value="Collapsed" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
@@ -321,10 +324,10 @@
                 <DockPanel>
                     <!-- Header -->
                     <DockPanel DockPanel.Dock="Top" Height="48" Margin="16,0,10,0">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet (Ctrl+T)">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource BarIconButton}" Command="{Binding NewTabCommand}" ToolTip="Nouvel onglet (Ctrl+T)">
                             <Path Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" />
                         </Button>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Tag="sidebar.toggleDock" Click="OnCommandClick"
+                        <Button DockPanel.Dock="Right" Style="{StaticResource BarIconButton}" Tag="sidebar.toggleDock" Click="OnCommandClick"
                                 ToolTip="Garder la colonne affichée / masquée automatiquement">
                             <Path Data="{StaticResource IconPin}" Width="14" Height="14">
                                 <Path.Style>

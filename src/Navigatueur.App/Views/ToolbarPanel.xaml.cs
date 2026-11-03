@@ -306,6 +306,8 @@ public partial class ToolbarPanel : UserControl, IShellPanel
         MainMenu.PlacementTarget = MenuButton;
         MainMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         MainMenu.HorizontalOffset = -190;
+        // The button spans the bar's height; the menu opens under its chip, as before.
+        MainMenu.VerticalOffset = -MenuButton.Padding.Bottom;
         MainMenu.IsOpen = true;
     }
 
@@ -358,10 +360,11 @@ public partial class ToolbarPanel : UserControl, IShellPanel
         }
     }
 
-    /// <summary>The bottom-right corner of <paramref name="element"/> on screen, in device-independent pixels (what Window.Left/Top use).</summary>
+    /// <summary>The bottom-right corner of <paramref name="element"/> (of its visible chip, for a bar button) on screen, in device-independent pixels (what Window.Left/Top use).</summary>
     private static Point ScreenPointUnder(FrameworkElement element)
     {
-        var device = element.PointToScreen(new Point(element.ActualWidth, element.ActualHeight));
+        var inset = element is Control control ? control.Padding : default;
+        var device = element.PointToScreen(new Point(element.ActualWidth - inset.Right, element.ActualHeight - inset.Bottom));
         return PresentationSource.FromVisual(element)?.CompositionTarget is { } target
             ? target.TransformFromDevice.Transform(device)
             : device;
