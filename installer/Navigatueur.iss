@@ -5,7 +5,7 @@
 ; it's installed with the app: one application, no separate runtime needed.
 
 #define MyAppName "Navigatueur"
-#define MyAppVersion "0.19.0"
+#define MyAppVersion "0.19.1"
 #define MyAppPublisher "Navigatueur"
 #define MyAppExeName "Navigatueur.exe"
 #define MyPublishDir "..\publish\app"

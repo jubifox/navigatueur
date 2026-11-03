@@ -71,6 +71,20 @@
       "source": "https://github.com/violentmonkey/violentmonkey/releases/tag/v2.50.0"
     },
     {
+      // Twitch puts its ads inside the video stream itself, out of uBlock Origin's
+      // reach. Don't add another Twitch ad blocker next to it: they conflict.
+      "id": "purple-adblock",
+      "name": "Purple AdBlock",
+      "description": "Bloque les publicités des lives et des vidéos Twitch, sans passer par un serveur tiers.",
+      "version": "2.7.1",
+      "package": "purple-adblock-2.7.1.zip",
+      "url": "https://github.com/arthurbolsoni/Purple-adblock/releases/download/2.7.1/purple-adblock-2.7.1-chromium.zip",
+      "sha256": "5f79c0c4b6e3b2097334d0f3f3e7209e4aa50463f5c4892450e6d6b9671be317",
+      "folder": "Purple AdBlock",
+      "matches": [ "Purple Ads Blocker", "Purple AdBlock" ],
+      "source": "https://github.com/arthurbolsoni/Purple-adblock/releases/tag/2.7.1"
+    },
+    {
       // Its license forbids redistribution: installed on the user's machine from
       // the Chrome Web Store, verified by its CRX signature (see CrxPackage).
       "id": "betterttv",

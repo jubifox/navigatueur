@@ -86,6 +86,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 
+Purple AdBlock 2.7.1
+--------------------
+Copyright 2021-present Arthur Bolsoni.
+Licence : Apache License, version 2.0 (texte complet inclus dans l'extension :
+LICENSE, et https://www.apache.org/licenses/LICENSE-2.0).
+Code source : https://github.com/arthurbolsoni/Purple-adblock/releases/tag/2.7.1
+
+Mention (fichier NOTICE de l'extension) :
+  Purple Adblock
+  Copyright 2021-present Arthur Bolsoni
+
+  This product includes code from TwitchAdSolutions
+  (https://github.com/pixeltris/TwitchAdSolutions and https://github.com/ryanbr/TwitchAdSolutions),
+  Copyright (c) 2020-present TwitchAdSolutions Contributors, under the MIT License.
+  Its notice is in THIRD-PARTY-NOTICES.md.
+
+
 BetterTTV
 ---------
 N'est PAS redistribué par Navigatueur : sa licence l'interdit sans

@@ -30,13 +30,13 @@ public class BuiltInExtensionCatalogTests
     };
 
     [Fact]
-    public void ShippedCatalog_IsValid_AndHoldsTheSixCoreExtensions()
+    public void ShippedCatalog_IsValid_AndHoldsTheSevenCoreExtensions()
     {
         var catalog = BuiltInExtensionCatalog.Parse(File.ReadAllText(ShippedCatalogPath()));
 
         Assert.Empty(catalog.Validate());
         Assert.Equal(
-            new[] { "betterttv", "consent-o-matic", "decentraleyes", "sponsorblock", "ublock-origin", "violentmonkey" },
+            new[] { "betterttv", "consent-o-matic", "decentraleyes", "purple-adblock", "sponsorblock", "ublock-origin", "violentmonkey" },
             catalog.Extensions.Select(e => e.Id).OrderBy(id => id));
     }
 
@@ -112,6 +112,7 @@ public class BuiltInExtensionCatalogTests
     [InlineData("uBlock Origin", "ublock-origin")]
     [InlineData("violentmonkey", "violentmonkey")]
     [InlineData("BetterTTV", "betterttv")]
+    [InlineData("Purple Ads Blocker", "purple-adblock")] // its manifest name
     public void FindByEngineName_RecognizesLocalizedNames(string engineName, string expectedId)
     {
         var catalog = BuiltInExtensionCatalog.Parse(File.ReadAllText(ShippedCatalogPath()));
