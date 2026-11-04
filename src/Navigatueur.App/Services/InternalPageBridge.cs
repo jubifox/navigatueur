@@ -41,6 +41,7 @@ public static class InternalPageBridge
         AppServices.Shortcuts.Changed += (_, _) => Invalidate();
         AppServices.SearchEngine.PropertyChanged += (_, _) => Invalidate();
         AppServices.Update.PropertyChanged += (_, _) => Invalidate();
+        AppServices.ForceDark.Changed += (_, _) => Invalidate();
     }
 
     /// <summary>Something the pages display changed; open internal pages should ask <see cref="BuildState"/> again.</summary>
@@ -166,6 +167,8 @@ public static class InternalPageBridge
                 hasChromeBackground = theme.ChromeBackgroundImagePath is not null,
                 chromeFollowsNewTab = theme.ChromeUsesNewTabBackground,
                 cursorTrail = theme.IsCursorTrailEnabled,
+                forceDark = AppServices.ForceDark.IsEnabledByDefault,
+                forceDarkSites = AppServices.ForceDark.SiteChoiceCount,
             },
             @interface = new
             {
@@ -182,6 +185,7 @@ public static class InternalPageBridge
                 sidebarTriggerSize = ui.SidebarEdgeTriggerSize,
                 animations = ui.AreAnimationsEnabled,
                 panelEffects = ui.ArePanelEffectsEnabled,
+                tabPreviews = ui.AreTabPreviewsEnabled,
             },
             navigation = new
             {
@@ -194,6 +198,7 @@ public static class InternalPageBridge
                 phishing = settings.IsPhishingProtectionEnabled,
                 suspendMinutes = settings.TabSuspendMinutes,
                 maxLiveTabs = settings.MaxLiveTabs,
+                autoPip = settings.IsAutoPictureInPictureEnabled,
                 rememberedPermissions = AppServices.PermissionStore.Count,
             },
             shortcuts = ShortcutCatalog.All
@@ -270,6 +275,9 @@ public static class InternalPageBridge
             case "appearance.chromeFollowsNewTab" when AsBool(value) is { } follows:
                 AppServices.Theme.SetChromeUsesNewTabBackground(follows);
                 break;
+            case "appearance.forceDark" when AsBool(value) is { } forceDark:
+                AppServices.ForceDark.SetEnabledByDefault(forceDark);
+                break;
 
             case "interface.mode" when AsString(value) is { } mode:
                 AppServices.Interface.Update(s => s.Mode = mode);
@@ -309,6 +317,13 @@ public static class InternalPageBridge
                 break;
             case "interface.panelEffects" when AsBool(value) is { } effects:
                 AppServices.Interface.Update(s => s.ArePanelEffectsEnabled = effects);
+                break;
+            case "interface.tabPreviews" when AsBool(value) is { } previews:
+                AppServices.Interface.Update(s => s.AreTabPreviewsEnabled = previews);
+                break;
+            case "media.autoPip" when AsBool(value) is { } autoPip:
+                settings.IsAutoPictureInPictureEnabled = autoPip;
+                SaveAndInvalidate();
                 break;
 
             case "startup.behavior" when AsString(value) is StartupBehaviors.RestoreSession or StartupBehaviors.HomePage:
@@ -391,6 +406,9 @@ public static class InternalPageBridge
             case "permissions.clear":
                 AppServices.PermissionStore.Clear();
                 Invalidate();
+                break;
+            case "forceDark.reset":
+                AppServices.ForceDark.ClearSiteChoices();
                 break;
             case "extensions.open":
                 shell?.Execute(ShellCommandIds.OpenExtensions);

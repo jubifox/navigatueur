@@ -16,6 +16,7 @@ public partial class TabManagerService : ObservableObject
     private readonly AppSettings _settings;
     private readonly List<BrowserTabViewModel> _liveOrder = new();
     private readonly DispatcherTimer _idleTimer;
+    private readonly DispatcherTimer _previewTimer;
     private readonly ClosedTabHistory _closedTabs = new();
 
     /// <summary>
@@ -79,6 +80,17 @@ public partial class TabManagerService : ObservableObject
         _idleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(60) };
         _idleTimer.Tick += (_, _) => SuspendIdleTabs();
         _idleTimer.Start();
+
+        // Keeps the visible tab's hover picture roughly current (scrolling, typing…) — a hidden page can't be pictured.
+        _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        _previewTimer.Tick += (_, _) =>
+        {
+            if (AppServices.Interface.Current.AreTabPreviewsEnabled)
+            {
+                _ = ActiveTab?.CapturePreviewAsync();
+            }
+        };
+        _previewTimer.Start();
 
         foreach (var saved in _settings.SavedGroups)
         {
@@ -265,14 +277,22 @@ public partial class TabManagerService : ObservableObject
 
     public void ActivateTab(BrowserTabViewModel tab)
     {
-        if (ActiveTab is not null)
+        var previous = ActiveTab;
+        if (previous is not null)
         {
-            ActiveTab.IsActive = false;
+            previous.IsActive = false;
         }
 
         ActiveTab = tab;
         tab.IsActive = true;
         MarkLive(tab);
+
+        if (previous is not null && previous != tab && Tabs.Contains(previous))
+        {
+            previous.OnLeftForAnotherTab();
+        }
+
+        tab.OnReturnedTo();
     }
 
     public void CloseTab(BrowserTabViewModel tab)
@@ -285,6 +305,10 @@ public partial class TabManagerService : ObservableObject
 
         _closedTabs.Push(new ClosedTabRecord(tab.AddressBarText, tab.Title, index, tab.GroupId, tab.IsPinned));
         OnPropertyChanged(nameof(CanReopenClosedTab));
+
+        // Shuts its engine down now. Merely taking the page out of the window
+        // doesn't: it would go on running (and playing) out of sight.
+        tab.IsSuspended = true;
 
         Tabs.RemoveAt(index);
         _liveOrder.Remove(tab);
@@ -578,7 +602,7 @@ public partial class TabManagerService : ObservableObject
             var evictIndex = -1;
             for (var i = _liveOrder.Count - 1; i >= 0; i--)
             {
-                if (!_liveOrder[i].IsPlayingAudio)
+                if (!_liveOrder[i].IsPlayingAudio && !_liveOrder[i].IsInAutoPictureInPicture)
                 {
                     evictIndex = i;
                     break;
@@ -602,7 +626,7 @@ public partial class TabManagerService : ObservableObject
         for (var i = _liveOrder.Count - 1; i >= 0; i--)
         {
             var tab = _liveOrder[i];
-            if (tab == ActiveTab || tab.IsPinned || tab.IsPlayingAudio)
+            if (tab == ActiveTab || tab.IsPinned || tab.IsPlayingAudio || tab.IsInAutoPictureInPicture)
             {
                 continue;
             }

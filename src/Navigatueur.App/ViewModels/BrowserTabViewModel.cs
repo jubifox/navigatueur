@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
 using System.Text.Json;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -49,6 +50,8 @@ public partial class BrowserTabViewModel : ObservableObject
         OnPropertyChanged(nameof(AddressBarDisplayText));
         OnPropertyChanged(nameof(IsSecure));
         OnPropertyChanged(nameof(IsInternalPage));
+        OnPropertyChanged(nameof(CanForceDark));
+        OnPropertyChanged(nameof(HostText));
         RefreshBookmarkState();
     }
 
@@ -74,6 +77,7 @@ public partial class BrowserTabViewModel : ObservableObject
     private bool isActive;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
     private bool isSuspended;
 
     [ObservableProperty]
@@ -88,10 +92,12 @@ public partial class BrowserTabViewModel : ObservableObject
     private bool isPinned;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
     private bool isMuted;
 
     /// <summary>Tracks the tab's actual audio output (not just the mute toggle) so the RAM-saving suspension logic can leave a tab currently playing sound alone.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
     private bool isPlayingAudio;
 
     /// <summary>The current page's declared &lt;meta name="theme-color"&gt; (hex or rgb()), or null if it doesn't have one. Drives the chrome background's top-to-gray gradient.</summary>
@@ -100,6 +106,38 @@ public partial class BrowserTabViewModel : ObservableObject
 
     [ObservableProperty]
     private ImageSource? favicon;
+
+    /// <summary>Picture of the page as it last looked on screen, for the tab column's hover card. Memory only, never written to disk.</summary>
+    [ObservableProperty]
+    private ImageSource? preview;
+
+    /// <summary>The engine's forced dark mode is on for the current page (Settings → Apparence, or per site from the "⋯" menu).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ForceDarkMenuHeader))]
+    private bool isForceDark;
+
+    public string ForceDarkMenuHeader => IsForceDark ? "Désactiver le mode sombre sur ce site" : "Activer le mode sombre sur ce site";
+
+    /// <summary>The current page can be darkened at all (not a Navigatueur page, not about:blank).</summary>
+    public bool CanForceDark => ForceDarkService.Applies(AddressBarText);
+
+    /// <summary>This tab's video sits in a picture-in-picture window that Navigatueur opened when the user switched away. Keeps the tab from being unloaded.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    private bool isInAutoPictureInPicture;
+
+    /// <summary>The site, for the hover card: its host, or the short navigatueur:// address of an internal page.</summary>
+    public string HostText => IsInternalPage
+        ? (InternalPages.ToDisplayUrl(AddressBarText) is { Length: > 0 } display ? display : "Page Navigatueur")
+        : UrlHelper.TryGetDisplayHost(AddressBarText) ?? AddressBarText;
+
+    /// <summary>One line on the hover card about what the tab is doing, or null when there's nothing to say.</summary>
+    public string? StatusText =>
+        IsInAutoPictureInPicture ? "Vidéo en image dans l'image"
+        : IsSuspended ? "En veille : se recharge à l'ouverture"
+        : IsMuted ? "Son coupé"
+        : IsPlayingAudio ? "Lecture du son"
+        : null;
 
     /// <summary>Per-tab escape hatch for the rare page a domain-list ad blocker still breaks, without touching global settings.</summary>
     [ObservableProperty]
@@ -163,6 +201,7 @@ public partial class BrowserTabViewModel : ObservableObject
                 }
 
                 _ = RefreshSiteAccentColorAsync();
+                _ = CapturePreviewSoonAsync();
             }
             else
             {
@@ -198,6 +237,7 @@ public partial class BrowserTabViewModel : ObservableObject
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
         IsLoading = true;
+        ApplyForceDark(e.Uri);
 
         if (e.Uri.StartsWith(WarningContinueUrl, StringComparison.OrdinalIgnoreCase))
         {
@@ -329,6 +369,8 @@ public partial class BrowserTabViewModel : ObservableObject
     {
         _coreWebView2 = coreWebView2;
         _coreWebView2.IsMuted = IsMuted;
+        _forceDarkApplied = false;
+        ApplyForceDark(AddressBarText);
 
         _coreWebView2.NavigationStarting += _onNavigationStarting;
         _coreWebView2.NavigationCompleted += _onNavigationCompleted;
@@ -387,6 +429,8 @@ public partial class BrowserTabViewModel : ObservableObject
         _coreWebView2.FaviconChanged -= _onFaviconChanged;
         _coreWebView2.ContainsFullScreenElementChanged -= _onContainsFullScreenElementChanged;
         _coreWebView2 = null;
+        _forceDarkApplied = false;
+        IsInAutoPictureInPicture = false;
         IsPageFullScreen = false;
         IsLoading = false;
         IsPlayingAudio = false;
@@ -408,6 +452,12 @@ public partial class BrowserTabViewModel : ObservableObject
 
         _faviconSite = site;
         Favicon = FaviconCache.TryGet(url);
+
+        // A background tab that moved to another site: its picture shows the old one.
+        if (!IsActive)
+        {
+            Preview = null;
+        }
     }
 
     private async Task RefreshFaviconAsync()
@@ -458,6 +508,7 @@ public partial class BrowserTabViewModel : ObservableObject
 
     private const string TogglePictureInPictureScript = """
         (function() {
+          window.__navigatueurAutoPip = null;
           if (document.pictureInPictureElement) {
             document.exitPictureInPicture();
             return;
@@ -471,6 +522,239 @@ public partial class BrowserTabViewModel : ObservableObject
 
     [RelayCommand]
     private void TogglePictureInPicture() => _ = _coreWebView2?.ExecuteScriptAsync(TogglePictureInPictureScript);
+
+    // ------------------------------------------------- automatic picture-in-picture
+
+    /// <summary>
+    /// Picks the video worth following — playing, audible, big enough to be
+    /// the page's main video — and moves it to picture-in-picture. Run with a
+    /// simulated user gesture (the engine only opens picture-in-picture in
+    /// answer to one). Answers "ok", or why nothing happened.
+    /// </summary>
+    private const string EnterAutoPictureInPictureScript = """
+        (async () => {
+          if (!document.pictureInPictureEnabled) return 'unsupported';
+          if (document.pictureInPictureElement) return 'already';
+          let best = null, bestArea = 0;
+          for (const v of document.querySelectorAll('video')) {
+            if (v.paused || v.ended || v.readyState < 2 || v.muted || v.volume === 0 || v.disablePictureInPicture) continue;
+            const r = v.getBoundingClientRect();
+            const area = r.width * r.height;
+            if (r.width < 200 || r.height < 110 || area <= bestArea) continue;
+            best = v; bestArea = area;
+          }
+          if (!best) return 'none';
+          await best.requestPictureInPicture();
+          window.__navigatueurAutoPip = best;
+          return 'ok';
+        })()
+        """;
+
+    /// <summary>
+    /// Settles when that window closes, however it closes: back in the page,
+    /// closed by the user, or replaced by another tab's (there is only ever
+    /// one picture-in-picture window), which is why nothing else needs to
+    /// keep track of which tab owns it.
+    /// </summary>
+    private const string WatchAutoPictureInPictureScript = """
+        new Promise(resolve => {
+          const v = window.__navigatueurAutoPip;
+          if (!v || document.pictureInPictureElement !== v) return resolve('gone');
+          v.addEventListener('leavepictureinpicture', () => resolve('left'), { once: true });
+        })
+        """;
+
+    /// <summary>Puts the video back in the page — only if it's still the one Navigatueur moved out.</summary>
+    private const string ExitAutoPictureInPictureScript = """
+        (() => {
+          const v = window.__navigatueurAutoPip;
+          window.__navigatueurAutoPip = null;
+          if (v && document.pictureInPictureElement === v) document.exitPictureInPicture().catch(() => {});
+        })()
+        """;
+
+    /// <summary>The user switched from this tab to another one in the same window.</summary>
+    public void OnLeftForAnotherTab()
+    {
+        if (!AppServices.CurrentSettings.IsAutoPictureInPictureEnabled || !IsPlayingAudio || _coreWebView2 is not { } core)
+        {
+            return;
+        }
+
+        _ = EnterAutoPictureInPictureAsync(core);
+    }
+
+    /// <summary>The user came back to this tab: its video returns to the page.</summary>
+    public void OnReturnedTo()
+    {
+        if (IsInAutoPictureInPicture)
+        {
+            ExitAutoPictureInPicture();
+        }
+    }
+
+    private void ExitAutoPictureInPicture()
+    {
+        IsInAutoPictureInPicture = false;
+        if (_coreWebView2 is { } core)
+        {
+            _ = RunQuietlyAsync(() => core.ExecuteScriptAsync(ExitAutoPictureInPictureScript));
+        }
+    }
+
+    private async Task EnterAutoPictureInPictureAsync(CoreWebView2 core)
+    {
+        var answer = await EvaluateAsync(core, EnterAutoPictureInPictureScript, userGesture: true);
+        if (answer != "ok" || _coreWebView2 != core)
+        {
+            return;
+        }
+
+        if (IsActive)
+        {
+            // Came straight back while the window was opening.
+            ExitAutoPictureInPicture();
+            return;
+        }
+
+        IsInAutoPictureInPicture = true;
+
+        await EvaluateAsync(core, WatchAutoPictureInPictureScript, userGesture: false);
+        if (_coreWebView2 == core)
+        {
+            IsInAutoPictureInPicture = false;
+        }
+    }
+
+    /// <summary>Runs <paramref name="script"/> through the DevTools protocol, awaiting its promise; the string it returns, or null if it failed (page gone, navigated, script threw).</summary>
+    private static async Task<string?> EvaluateAsync(CoreWebView2 core, string script, bool userGesture)
+    {
+        try
+        {
+            var parameters = JsonSerializer.Serialize(new { expression = script, awaitPromise = true, userGesture, returnByValue = true });
+            using var result = JsonDocument.Parse(await core.CallDevToolsProtocolMethodAsync("Runtime.evaluate", parameters));
+            return result.RootElement.TryGetProperty("result", out var value) && value.TryGetProperty("value", out var text) && text.ValueKind == JsonValueKind.String
+                ? text.GetString()
+                : null;
+        }
+        catch (Exception ex) when (IsEngineGone(ex) || ex is JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static async Task RunQuietlyAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex) when (IsEngineGone(ex))
+        {
+            // The tab was unloaded or closed meanwhile.
+        }
+    }
+
+    /// <summary>What the engine throws once its page or the whole engine has gone away (navigation, tab unloaded).</summary>
+    private static bool IsEngineGone(Exception ex) =>
+        ex is ObjectDisposedException or InvalidOperationException or ArgumentException or System.Runtime.InteropServices.COMException;
+
+    // ------------------------------------------------------------ forced dark mode
+
+    /// <summary>What was last asked of the engine — it keeps the setting across navigations, so it's only sent again when it changes.</summary>
+    private bool _forceDarkApplied;
+
+    /// <summary>Turns the engine's auto dark mode on or off for <paramref name="url"/> (default: the current page).</summary>
+    public void ApplyForceDark(string? url = null)
+    {
+        url ??= _coreWebView2?.Source ?? AddressBarText;
+        var wanted = AppServices.ForceDark.IsEnabledFor(url, _tabManager.IsPrivate);
+        IsForceDark = wanted;
+
+        if (_coreWebView2 is not { } core || _forceDarkApplied == wanted)
+        {
+            return;
+        }
+
+        _forceDarkApplied = wanted;
+        _ = RunQuietlyAsync(() => core.CallDevToolsProtocolMethodAsync(
+            "Emulation.setAutoDarkModeOverride", wanted ? "{\"enabled\":true}" : "{\"enabled\":false}"));
+    }
+
+    [RelayCommand]
+    private void ToggleForceDarkForSite() =>
+        AppServices.ForceDark.SetForSite(_coreWebView2?.Source ?? AddressBarText, !IsForceDark, _tabManager.IsPrivate);
+
+    // ------------------------------------------------------------- hover preview
+
+    /// <summary>Width the picture is decoded at: the card shows it about 260 px wide, this leaves room for a 150 % display.</summary>
+    private const int PreviewPixelWidth = 420;
+
+    private DateTime _previewTakenAt;
+    private int _previewRequest;
+
+    /// <summary>A moment after a page finished loading, once it has had time to draw itself.</summary>
+    private async Task CapturePreviewSoonAsync()
+    {
+        await Task.Delay(1200);
+        await CapturePreviewAsync(force: true);
+    }
+
+    /// <summary>
+    /// Takes a picture of the page for the hover card. Only works while the
+    /// page is on screen — the engine doesn't draw a hidden one — so this is
+    /// called while the tab is the visible one: after a load, when the mouse
+    /// heads for the tab column, and every so often.
+    /// </summary>
+    public async Task CapturePreviewAsync(bool force = false)
+    {
+        if (_coreWebView2 is not { } core || !IsActive || _zoomHost is not { IsVisible: true } host ||
+            Window.GetWindow(host) is { WindowState: WindowState.Minimized } ||
+            (!force && DateTime.UtcNow - _previewTakenAt < TimeSpan.FromSeconds(2)))
+        {
+            return;
+        }
+
+        _previewTakenAt = DateTime.UtcNow;
+        var request = ++_previewRequest;
+        var stream = new MemoryStream();
+
+        try
+        {
+            var capture = core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Jpeg, stream);
+            if (await Task.WhenAny(capture, Task.Delay(2000)) != capture)
+            {
+                // Hidden in the meantime: the engine only answers once the page shows again. Nobody waits for it.
+                _ = capture.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                return;
+            }
+
+            await capture;
+            var jpeg = stream.ToArray();
+            if (jpeg.Length == 0 || request != _previewRequest || _coreWebView2 != core)
+            {
+                return;
+            }
+
+            Preview = await Task.Run(() => DecodePreview(jpeg));
+        }
+        catch (Exception ex) when (IsEngineGone(ex) || ex is NotSupportedException or IOException or FileFormatException)
+        {
+            // Keep the previous picture.
+        }
+    }
+
+    private static ImageSource DecodePreview(byte[] jpeg)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.DecodePixelWidth = PreviewPixelWidth;
+        image.StreamSource = new MemoryStream(jpeg);
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
 
     [RelayCommand]
     private void Navigate() => NavigateTo(AddressBarText);

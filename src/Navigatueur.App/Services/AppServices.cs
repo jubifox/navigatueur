@@ -27,6 +27,8 @@ public static class AppServices
 
     public static ThemeService Theme { get; } = new(CurrentSettings);
 
+    public static ForceDarkService ForceDark { get; } = new(CurrentSettings);
+
     public static SearchEngineService SearchEngine { get; } = new(CurrentSettings);
 
     public static UpdateService Update { get; } = new();

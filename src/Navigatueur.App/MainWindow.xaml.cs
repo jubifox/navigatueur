@@ -458,6 +458,9 @@ public partial class MainWindow : Window, IShellCommands
             case ShellCommandIds.PictureInPicture:
                 active?.TogglePictureInPictureCommand.Execute(null);
                 break;
+            case ShellCommandIds.ToggleForceDarkForSite:
+                active?.ToggleForceDarkForSiteCommand.Execute(null);
+                break;
             case ShellCommandIds.ZoomIn:
                 active?.ZoomInCommand.Execute(null);
                 break;

@@ -164,6 +164,7 @@ public partial class BrowserTabView : UserControl
 
         InternalPageBridge.StateInvalidated += OnInternalStateInvalidated;
         AppServices.Theme.PropertyChanged += OnThemePropertyChanged;
+        AppServices.ForceDark.Changed += OnForceDarkChanged;
 
         ViewModel.AttachCoreWebView2(core);
         ViewModel.AttachZoomHost(webView);
@@ -277,6 +278,9 @@ public partial class BrowserTabView : UserControl
         var script = $"window.__navigatueurTrail && window.__navigatueurTrail({(theme.IsCursorTrailEnabled ? "true" : "false")}, {System.Text.Json.JsonSerializer.Serialize(theme.AccentColorHex)})";
         _ = core.ExecuteScriptAsync(script);
     }
+
+    /// <summary>The forced dark mode was switched (globally or for a site): this page follows straight away.</summary>
+    private void OnForceDarkChanged(object? sender, EventArgs e) => ViewModel?.ApplyForceDark();
 
     // ------------------------------------------------------ internal pages
 
@@ -434,6 +438,7 @@ public partial class BrowserTabView : UserControl
 
         InternalPageBridge.StateInvalidated -= OnInternalStateInvalidated;
         AppServices.Theme.PropertyChanged -= OnThemePropertyChanged;
+        AppServices.ForceDark.Changed -= OnForceDarkChanged;
 
         // A suspended tab can't answer pending permission prompts: deny them rather than leave the page waiting.
         while (_pendingPermissions.Count > 0)

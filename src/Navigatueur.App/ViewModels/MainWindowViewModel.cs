@@ -79,6 +79,9 @@ public partial class MainWindowViewModel : ObservableObject
     /// <summary>"Nouvel onglet" sits right under the last tab instead of at the bottom of the column (Settings → Interface).</summary>
     public bool IsNewTabButtonAfterTabs => AppServices.Interface.Current.NewTabButtonPlacementValue == NewTabButtonPosition.AfterTabs;
 
+    /// <summary>A tab row's plain title tooltip — replaced by the preview card when that's on (Settings → Interface).</summary>
+    public bool IsTabTitleTooltipEnabled => !AppServices.Interface.Current.AreTabPreviewsEnabled;
+
     /// <summary>Set by the window; drives the maximize/restore glyph.</summary>
     [ObservableProperty]
     private bool isMaximized;
@@ -122,6 +125,7 @@ public partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(IsSidebarDocked));
         OnPropertyChanged(nameof(IsSidebarOnRight));
         OnPropertyChanged(nameof(IsNewTabButtonAfterTabs));
+        OnPropertyChanged(nameof(IsTabTitleTooltipEnabled));
     }
 
     private void OnBookmarksChanged(object? sender, EventArgs e)

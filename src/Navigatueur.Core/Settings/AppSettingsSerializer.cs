@@ -38,6 +38,8 @@ public static class AppSettingsSerializer
         settings.Tabs ??= new();
         settings.SavedGroups ??= new();
         settings.ShortcutOverrides ??= new();
+        settings.ForceDarkSites ??= new();
+        Sites.ForceDarkRules.Normalize(settings.ForceDarkSites);
         settings.HomePageUrl ??= InternalPages.NewTabUrl;
         settings.TabSuspendMinutes = Math.Clamp(settings.TabSuspendMinutes, 0, 24 * 60);
         settings.MaxLiveTabs = Math.Clamp(settings.MaxLiveTabs, 1, 20);

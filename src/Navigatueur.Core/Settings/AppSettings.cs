@@ -62,6 +62,15 @@ public sealed class AppSettings
     /// <summary>Whether the accent-colored cursor trail effect is shown, both in the app's own panels and drawn inside web pages.</summary>
     public bool IsCursorTrailEnabled { get; set; } = true;
 
+    /// <summary>Darken every site that has no dark theme of its own (the engine's auto dark mode). Sites can be switched individually, see <see cref="ForceDarkSites"/>.</summary>
+    public bool IsForceDarkEnabled { get; set; }
+
+    /// <summary>Per-site exceptions to <see cref="IsForceDarkEnabled"/>: host (without "www.") to darkened or not. See Sites.ForceDarkRules.</summary>
+    public Dictionary<string, bool> ForceDarkSites { get; set; } = new();
+
+    /// <summary>Switching away from a tab whose video is playing moves that video into a picture-in-picture window, and coming back puts it back in the page.</summary>
+    public bool IsAutoPictureInPictureEnabled { get; set; } = true;
+
     /// <summary>Toolbar/tab-column display mode, edge-reveal timings and panel styling.</summary>
     public InterfaceSettings Interface { get; set; } = new();
 

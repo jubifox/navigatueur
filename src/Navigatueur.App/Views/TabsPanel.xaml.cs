@@ -39,6 +39,15 @@ public partial class TabsPanel : UserControl, IShellPanel
     private ContextMenu? _lastContextMenu;
     private (bool Floating, bool Effects, PanelSide Side, bool Dark)? _appliedChrome;
 
+    /// <summary>Resting on a row this long opens its hover card; once one is open, moving to another row switches at once.</summary>
+    private readonly DispatcherTimer _previewShowTimer = new() { Interval = TimeSpan.FromMilliseconds(450) };
+
+    /// <summary>Grace period when leaving a row, so sliding to the next one doesn't close and reopen the card.</summary>
+    private readonly DispatcherTimer _previewHideTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
+
+    private FrameworkElement? _previewRow;
+    private DateTime _previewClosedAt;
+
     public TabsPanel(IShellCommands shell)
     {
         InitializeComponent();
@@ -46,16 +55,46 @@ public partial class TabsPanel : UserControl, IShellPanel
         ContextMenuOpening += (_, e) => _lastContextMenu = (e.Source as FrameworkElement)?.ContextMenu;
         Body.Width = AppServices.Interface.Current.SidebarWidth;
 
+        _previewShowTimer.Tick += (_, _) =>
+        {
+            _previewShowTimer.Stop();
+            if (_previewRow is { IsMouseOver: true } row)
+            {
+                ShowPreview(row);
+            }
+        };
+        _previewHideTimer.Tick += (_, _) => HidePreview();
+        IsVisibleChanged += (_, _) => HidePreview();
+        MouseEnter += (_, _) => CaptureActiveTabPreview();
+        PreviewMouseWheel += (_, _) => HidePreview();
+        ContextMenuOpening += (_, _) => HidePreview();
+
         // Subscribed only while on screen, so a closed window's panel isn't kept alive by the app-wide service.
         Loaded += (_, _) =>
         {
             AppServices.Interface.Changed += OnInterfaceChanged;
+            Application.Current.Deactivated += OnApplicationDeactivated;
             Body.Width = AppServices.Interface.Current.SidebarWidth;
         };
-        Unloaded += (_, _) => AppServices.Interface.Changed -= OnInterfaceChanged;
+        Unloaded += (_, _) =>
+        {
+            AppServices.Interface.Changed -= OnInterfaceChanged;
+            Application.Current.Deactivated -= OnApplicationDeactivated;
+            HidePreview();
+        };
     }
 
-    private void OnInterfaceChanged(object? sender, EventArgs e) => Body.Width = AppServices.Interface.Current.SidebarWidth;
+    private void OnInterfaceChanged(object? sender, EventArgs e)
+    {
+        Body.Width = AppServices.Interface.Current.SidebarWidth;
+        if (!AppServices.Interface.Current.AreTabPreviewsEnabled)
+        {
+            HidePreview();
+        }
+    }
+
+    /// <summary>Switching to another application: the card is a topmost window, it mustn't stay over it.</summary>
+    private void OnApplicationDeactivated(object? sender, EventArgs e) => HidePreview();
 
     public static string? GetDropPosition(DependencyObject element) => (string?)element.GetValue(DropPositionProperty);
 
@@ -171,6 +210,81 @@ public partial class TabsPanel : UserControl, IShellPanel
     }
 
     /// <summary>After picking a tab with the mouse, keyboard focus goes to its page (scrolling, typing), not to the row.</summary>
+    // ------------------------------------------------------------ hover card
+
+    /// <summary>
+    /// The mouse is heading for the tab column, very likely to pick another tab:
+    /// a fresh picture of the page on screen now is what its card will show
+    /// later (a page that isn't on screen can't be pictured).
+    /// </summary>
+    private void CaptureActiveTabPreview()
+    {
+        if (AppServices.Interface.Current.AreTabPreviewsEnabled)
+        {
+            _ = ViewModel?.ActiveTab?.CapturePreviewAsync();
+        }
+    }
+
+    private void OnTabRowMouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement row || !AppServices.Interface.Current.AreTabPreviewsEnabled ||
+            _isDragging || e.LeftButton == MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        _previewHideTimer.Stop();
+        _previewRow = row;
+
+        if (PreviewPopup.IsOpen || DateTime.UtcNow - _previewClosedAt < TimeSpan.FromMilliseconds(350))
+        {
+            ShowPreview(row);
+        }
+        else
+        {
+            _previewShowTimer.Stop();
+            _previewShowTimer.Start();
+        }
+    }
+
+    private void OnTabRowMouseLeave(object sender, MouseEventArgs e)
+    {
+        _previewShowTimer.Stop();
+        if (PreviewPopup.IsOpen)
+        {
+            _previewHideTimer.Stop();
+            _previewHideTimer.Start();
+        }
+    }
+
+    private void ShowPreview(FrameworkElement row)
+    {
+        if (row.DataContext is not BrowserTabViewModel tab || !row.IsVisible)
+        {
+            return;
+        }
+
+        var left = AppServices.Interface.SidebarSide == PanelSide.Left;
+        PreviewPopup.IsOpen = false;
+        PreviewPopup.DataContext = tab;
+        PreviewPopup.PlacementTarget = row;
+        PreviewPopup.Placement = left ? PlacementMode.Right : PlacementMode.Left;
+        PreviewPopup.HorizontalOffset = left ? 5 : -5;
+        PreviewPopup.IsOpen = true;
+    }
+
+    private void HidePreview()
+    {
+        _previewShowTimer.Stop();
+        _previewHideTimer.Stop();
+        _previewRow = null;
+        if (PreviewPopup.IsOpen)
+        {
+            PreviewPopup.IsOpen = false;
+            _previewClosedAt = DateTime.UtcNow;
+        }
+    }
+
     private void OnTabRowClick(object sender, RoutedEventArgs e)
     {
         if (InputManager.Current.MostRecentInputDevice is MouseDevice)
@@ -287,6 +401,7 @@ public partial class TabsPanel : UserControl, IShellPanel
 
     private void OnTabPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        HidePreview();
         _dragStart = e.GetPosition(this);
         _dragSource = (sender as FrameworkElement)?.DataContext as BrowserTabViewModel;
     }

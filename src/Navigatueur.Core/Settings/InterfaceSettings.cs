@@ -99,6 +99,9 @@ public sealed class InterfaceSettings
     /// </summary>
     public int SidebarEdgeTriggerSize { get; set; } = 18;
 
+    /// <summary>Hovering a tab shows a card with a picture of the page as it was last seen, instead of a plain tooltip.</summary>
+    public bool AreTabPreviewsEnabled { get; set; } = true;
+
     public bool AreAnimationsEnabled { get; set; } = true;
 
     /// <summary>Rounded corners and drop shadows on floating panels. Off forces flat, opaque panels.</summary>

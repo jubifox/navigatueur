@@ -29,6 +29,7 @@ public static class ShellCommandIds
     public const string Find = "page.find";
     public const string Translate = "page.translate";
     public const string PictureInPicture = "page.pip";
+    public const string ToggleForceDarkForSite = "page.forceDark";
     public const string ZoomIn = "zoom.in";
     public const string ZoomOut = "zoom.out";
     public const string ZoomReset = "zoom.reset";

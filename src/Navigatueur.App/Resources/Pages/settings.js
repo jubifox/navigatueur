@@ -19,6 +19,9 @@
     "theme.mode": "theme.mode",
     "appearance.cursorTrail": "theme.cursorTrail",
     "appearance.chromeFollowsNewTab": "theme.chromeFollowsNewTab",
+    "appearance.forceDark": "theme.forceDark",
+    "interface.tabPreviews": "interface.tabPreviews",
+    "media.autoPip": "navigation.autoPip",
     "interface.toolbarAutoHide": "interface.toolbarAutoHide",
     "interface.sidebarAutoHide": "interface.sidebarAutoHide",
     "interface.sidebarSide": "interface.sidebarSide",
@@ -257,6 +260,12 @@
       });
       engines.appendChild(chip);
     });
+
+    var darkSites = (state.theme && state.theme.forceDarkSites) || 0;
+    $("#forceDarkSitesText").textContent = darkSites === 0
+      ? "Aucun site réglé à part. Depuis le menu ⋯ d'une page : « Activer / Désactiver le mode sombre sur ce site »."
+      : darkSites + " site" + (darkSites > 1 ? "s" : "") + " réglé" + (darkSites > 1 ? "s" : "") + " à part depuis le menu ⋯.";
+    $("#forceDarkReset").disabled = darkSites === 0;
 
     var remembered = navigation.rememberedPermissions || 0;
     $("#permissionsText").textContent = remembered === 0

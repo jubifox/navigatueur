@@ -172,6 +172,12 @@ h3 {
   color: var(--danger);
 }
 
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
 .icon-btn {
   display: inline-grid;
   place-items: center;

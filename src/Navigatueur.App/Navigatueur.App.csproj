@@ -10,7 +10,7 @@
     <Nullable>enable</Nullable>
     <RootNamespace>Navigatueur.App</RootNamespace>
     <AssemblyName>Navigatueur</AssemblyName>
-    <Version>0.20.0</Version>
+    <Version>0.21.0</Version>
     <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>

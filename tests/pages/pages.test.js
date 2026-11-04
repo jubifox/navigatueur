@@ -33,10 +33,10 @@ function makeState(overrides = {}) {
   const base = {
     type: "nv:state",
     isPrivate: false,
-    theme: { mode: "Dark", accent: "#4C8DFF", newTabBackground: null, hasChromeBackground: false, chromeFollowsNewTab: true, cursorTrail: true },
+    theme: { mode: "Dark", accent: "#4C8DFF", newTabBackground: null, hasChromeBackground: false, chromeFollowsNewTab: true, cursorTrail: true, forceDark: false, forceDarkSites: 0 },
     interface: {
       mode: "Immersive", toolbarAutoHide: true, sidebarAutoHide: true, sidebarSide: "Left", newTabButton: "Bottom", sidebarWidth: 280,
-      edgeReveal: true, revealDelay: 150, hideDelay: 600, triggerSize: 6, sidebarTriggerSize: 18, animations: true, panelEffects: true,
+      edgeReveal: true, revealDelay: 150, hideDelay: 600, triggerSize: 6, sidebarTriggerSize: 18, animations: true, panelEffects: true, tabPreviews: true,
     },
     navigation: {
       startup: "RestoreSession", homePage: "", searchEngine: "DuckDuckGo", searchAction: "https://duckduckgo.com/",
@@ -44,7 +44,7 @@ function makeState(overrides = {}) {
         { id: "Bing", name: "Bing" }, { id: "Google", name: "Google" }, { id: "DuckDuckGo", name: "DuckDuckGo" },
         { id: "Qwant", name: "Qwant" }, { id: "Ecosia", name: "Ecosia" },
       ],
-      adBlock: true, phishing: true, suspendMinutes: 15, maxLiveTabs: 3, rememberedPermissions: 2,
+      adBlock: true, phishing: true, suspendMinutes: 15, maxLiveTabs: 3, autoPip: true, rememberedPermissions: 2,
     },
     shortcuts: [
       { id: "tab.new", label: "Nouvel onglet", category: "Onglets", gestures: ["Ctrl + T"], isDefault: true },
@@ -219,6 +219,31 @@ test("settings: controls send the right setting keys and values", async (browser
 
   await page.click('[data-action="extensions.open"]');
   assert.deepStrictEqual(await lastOfType(page, "nv:action"), { type: "nv:action", name: "extensions.open" });
+
+  await page.click('label.switch:has([data-key="appearance.forceDark"])');
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "appearance.forceDark", value: true });
+
+  await page.click('label.switch:has([data-key="interface.tabPreviews"])');
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.tabPreviews", value: false });
+
+  await page.click('label.switch:has([data-key="media.autoPip"])');
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "media.autoPip", value: false });
+});
+
+test("settings: forced dark mode shows its per-site choices and can reset them", async (browser) => {
+  const { page } = await openPage(browser, "settings.html");
+  await deliver(page, makeState());
+  assert.strictEqual(await page.isChecked('[data-key="appearance.forceDark"]'), false);
+  assert.strictEqual(await page.isChecked('[data-key="interface.tabPreviews"]'), true);
+  assert.strictEqual(await page.isChecked('[data-key="media.autoPip"]'), true);
+  assert.match(await page.textContent("#forceDarkSitesText"), /Aucun site/);
+  assert.strictEqual(await page.isDisabled("#forceDarkReset"), true);
+
+  await deliver(page, makeState({ theme: { forceDark: true, forceDarkSites: 3 } }));
+  assert.strictEqual(await page.isChecked('[data-key="appearance.forceDark"]'), true);
+  assert.match(await page.textContent("#forceDarkSitesText"), /3 sites réglés à part/);
+  await page.click("#forceDarkReset");
+  assert.deepStrictEqual(await lastOfType(page, "nv:action"), { type: "nv:action", name: "forceDark.reset" });
 });
 
 test("settings: the panels' own image row is greyed out while they follow the new-tab page", async (browser) => {

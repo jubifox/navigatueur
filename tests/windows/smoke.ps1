@@ -35,6 +35,29 @@ public static class SmokeNative {
     [DllImport("user32.dll")] public static extern void mouse_event(uint flags, int dx, int dy, uint data, UIntPtr extra);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
+
+    delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc proc, IntPtr lParam);
+    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hwnd, System.Text.StringBuilder text, int max);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+
+    // Titles of the engine's own top-level windows (the picture-in-picture window is one).
+    public static string[] EngineWindowTitles() {
+        var titles = new System.Collections.Generic.List<string>();
+        EnumWindows((hwnd, _) => {
+            if (!IsWindowVisible(hwnd)) return true;
+            uint pid; GetWindowThreadProcessId(hwnd, out pid);
+            try {
+                if (!System.Diagnostics.Process.GetProcessById((int)pid).ProcessName.StartsWith("msedgewebview2", StringComparison.OrdinalIgnoreCase)) return true;
+            } catch (ArgumentException) { return true; }
+            var text = new System.Text.StringBuilder(256);
+            GetWindowText(hwnd, text, 256);
+            if (text.Length > 0) titles.Add(text.ToString());
+            return true;
+        }, IntPtr.Zero);
+        return titles.ToArray();
+    }
 }
 "@
 [SmokeNative]::SetProcessDPIAware() | Out-Null
@@ -65,7 +88,7 @@ function New-Backdrop([string] $Path) {
     $graphics.Dispose(); $bitmap.Dispose()
 }
 
-function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme = 'Dark', [string] $NewTabButton = 'Bottom', [string] $Backdrop = $null) {
+function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme = 'Dark', [string] $NewTabButton = 'Bottom', [string] $Backdrop = $null, [switch] $ForceDark) {
     New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
     $videoGroup = '6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b'
     $settings = [ordered]@{
@@ -85,6 +108,7 @@ function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme
         Interface      = [ordered]@{ Mode = $Mode; SidebarSide = $Side; NewTabButtonPlacement = $NewTabButton; HasSeenIntro = $true }
     }
     if ($Backdrop) { $settings['NewTabBackgroundImagePath'] = $Backdrop }
+    if ($ForceDark) { $settings['IsForceDarkEnabled'] = $true }
     $settings | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $settingsDir 'settings.json') -Encoding utf8
 }
 
@@ -124,6 +148,10 @@ function Click-At([int] $X, [int] $Y) {
     Move-Mouse $X $Y 150
     [SmokeNative]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
     [SmokeNative]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
+}
+
+function Test-PictureInPicture {
+    return [bool]([SmokeNative]::EngineWindowTitles() | Where-Object { $_ -match 'icture|incrustation' })
 }
 
 function Assert-Alive($Process, [string] $When) {
@@ -205,6 +233,14 @@ try {
     Send-Keys @($VK_ESCAPE)
     Start-Sleep -Milliseconds 800
 
+    # Hover card: rest on the second row, the tab just left (pictured while it was on screen).
+    Move-Mouse 12 $cy 900
+    $column = Save-Shot 'colonne-avant-survol'
+    Move-Mouse 140 102 1400
+    $card = Save-Shot 'survol-onglet-apercu'
+    Assert-Changed $column $card 'la carte d aperçu doit apparaître au survol d un onglet'
+    Move-Mouse $cx $cy 1600
+
     Send-Keys @($VK_CONTROL, $VK_SHIFT, (VK 'A'))
     Start-Sleep -Milliseconds 900
     Save-Shot 'ctrl-maj-a-onglets-clavier' | Out-Null
@@ -265,18 +301,92 @@ try {
     Start-Sleep -Seconds 2
 
     # ------------------------------------------------------ classic mode
-    Write-Host '== Mode classique, colonne à droite, thème clair, fond d image, bouton sous les onglets'
+    Write-Host '== Mode classique, colonne à droite, thème clair, sites assombris, fond d image, bouton sous les onglets'
     # Where Settings copies a picked picture: the new-tab page only loads images from there.
     New-Item -ItemType Directory -Force -Path (Join-Path $dataDir 'Backgrounds') | Out-Null
     $backdrop = Join-Path (Join-Path $dataDir 'Backgrounds') 'newtab.png'
     New-Backdrop $backdrop
-    Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light' -NewTabButton 'AfterTabs' -Backdrop $backdrop
+    Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light' -NewTabButton 'AfterTabs' -Backdrop $backdrop -ForceDark
     $app = Start-Navigatueur
-    Save-Shot 'classique-droite-clair' | Out-Null
+    Save-Shot 'classique-droite-clair-sites-sombres' | Out-Null
     Send-Keys @($VK_CONTROL, (VK 'T'))
     Start-Sleep -Seconds 3
     Save-Shot 'classique-fond-aligne-nouvel-onglet' | Out-Null
     Assert-Alive $app 'mode classique'
+    Stop-Process -Id $app.Id -Force
+    Start-Sleep -Seconds 2
+
+    # ---------------------------------------- automatic picture-in-picture
+    Write-Host '== Image dans l image automatique'
+    # A page whose video carries a (very quiet) sound once clicked: the engine
+    # only lets a page play sound after a real click on it.
+    $videoPage = Join-Path $env:TEMP 'navigatueur-video.html'
+    Set-Content -Path $videoPage -Encoding utf8 -Value @'
+<!doctype html><html><head><title>Vidéo prête</title></head>
+<body style="margin:0;background:#111;color:#fff;font:28px Segoe UI" onclick="start()">
+<p style="position:fixed;top:16px;left:20px;margin:0">Cliquer pour lancer la vidéo</p>
+<video id="v" style="width:100vw;height:100vh" playsinline></video>
+<canvas id="c" width="640" height="360" hidden></canvas>
+<script>
+var started = false;
+function start() {
+  if (started) return; started = true;
+  var c = document.getElementById('c'), x = c.getContext('2d'), n = 0;
+  (function frame() { n++; x.fillStyle = 'hsl(' + (n % 360) + ',70%,45%)'; x.fillRect(0, 0, 640, 360);
+    x.fillStyle = '#fff'; x.font = 'bold 90px Segoe UI'; x.fillText(n, 40, 220); requestAnimationFrame(frame); })();
+  var audio = new AudioContext(), tone = audio.createOscillator(), gain = audio.createGain(), out = audio.createMediaStreamDestination();
+  gain.gain.value = 0.002; tone.connect(gain); gain.connect(out); tone.start();
+  var stream = c.captureStream(30); stream.addTrack(out.stream.getAudioTracks()[0]);
+  var v = document.getElementById('v'); v.srcObject = stream;
+  v.play().then(function () { document.title = 'Vidéo en lecture'; }, function (e) { document.title = 'Échec : ' + e.name; });
+}
+</script></body></html>
+'@
+    Write-Settings -Mode 'Immersive'
+    $settingsPath = Join-Path $settingsDir 'settings.json'
+    $json = Get-Content $settingsPath -Raw | ConvertFrom-Json
+    $json.Tabs = @([ordered]@{ Url = ([Uri]$videoPage).AbsoluteUri; IsPinned = $false }, [ordered]@{ Url = 'https://example.com/'; IsPinned = $false })
+    $json.Groups = @()
+    $json.ActiveTabIndex = 0
+    $json | ConvertTo-Json -Depth 6 | Set-Content $settingsPath -Encoding utf8
+    $app = Start-Navigatueur
+    Click-At $cx $cy
+    Start-Sleep -Seconds 4
+    $app.Refresh()
+    Write-Host "  titre de la fenêtre : $($app.MainWindowTitle)"
+    Save-Shot 'video-en-lecture' | Out-Null
+
+    Send-Keys @($VK_CONTROL, (VK 'T'))
+    Start-Sleep -Seconds 3
+    Save-Shot 'pip-auto-nouvel-onglet' | Out-Null
+    if (-not (Test-PictureInPicture)) {
+        $script:failures += "En quittant l onglet de la vidéo, elle aurait dû passer en image dans l image (fenêtres du moteur : $([SmokeNative]::EngineWindowTitles() -join ', '))"
+    }
+
+    Send-Keys @($VK_CONTROL, 0x31)
+    Start-Sleep -Seconds 2
+    Save-Shot 'pip-retour-sur-onglet' | Out-Null
+    if (Test-PictureInPicture) {
+        $script:failures += 'En revenant sur l onglet, la vidéo aurait dû revenir dans la page'
+    }
+
+    # Closing a tab shuts its page down: a video left in picture-in-picture goes with it.
+    Send-Keys @($VK_CONTROL, 0x33)
+    Start-Sleep -Seconds 3
+    $pipAgain = Test-PictureInPicture
+    Write-Host "  image dans l image après être passé au 3e onglet : $pipAgain"
+    # Middle click on the video's row (the first one) in the tab column.
+    Move-Mouse 12 $cy 900
+    Move-Mouse 140 66 600
+    [SmokeNative]::mouse_event(0x0020, 0, 0, 0, [UIntPtr]::Zero)
+    [SmokeNative]::mouse_event(0x0040, 0, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Seconds 3
+    Save-Shot 'pip-onglet-ferme' | Out-Null
+    if ($pipAgain -and (Test-PictureInPicture)) {
+        $script:failures += 'Fermer l onglet de la vidéo aurait dû fermer son image dans l image'
+    }
+    Move-Mouse $cx $cy 1200
+    Assert-Alive $app 'image dans l image'
     Stop-Process -Id $app.Id -Force
     Start-Sleep -Seconds 2
 

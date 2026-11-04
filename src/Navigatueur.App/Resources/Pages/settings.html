@@ -458,6 +458,10 @@
           </div>
         </div>
         <div class="row">
+          <div class="text"><strong>Aperçu des onglets au survol</strong><small>Une image de la page telle que vous l'avez laissée, avec son titre et son adresse.</small></div>
+          <label class="switch"><input type="checkbox" data-key="interface.tabPreviews" /><span></span></label>
+        </div>
+        <div class="row">
           <div class="text"><strong>Largeur de la colonne</strong><small>Se règle aussi en tirant le bord de la colonne.</small></div>
           <div class="range"><input type="range" min="200" max="440" step="10" data-key="interface.sidebarWidth" data-unit=" px" /><output></output></div>
         </div>
@@ -520,6 +524,16 @@
       </div>
       <div class="card">
         <div class="row">
+          <div class="text"><strong>Mode sombre pour tous les sites</strong><small>Assombrit les pages qui n'ont pas de thème sombre ; celles qui en ont un l'utilisent.</small></div>
+          <label class="switch"><input type="checkbox" data-key="appearance.forceDark" /><span></span></label>
+        </div>
+        <div class="row">
+          <div class="text"><strong>Réglages par site</strong><small id="forceDarkSitesText">—</small></div>
+          <button class="btn" id="forceDarkReset" data-action="forceDark.reset">Réinitialiser</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
           <div class="text"><strong>Fond de la page nouvel onglet</strong></div>
           <button class="btn" data-action="background.newtab.choose">Choisir une image…</button>
           <button class="btn ghost" data-action="background.newtab.reset">Retirer</button>
@@ -558,6 +572,12 @@
         <div class="row">
           <div class="text"><strong>Moteur de recherche</strong><small>Pour la barre d'adresse et la page nouvel onglet.</small></div>
           <div class="chips" id="engines"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="text"><strong>Image dans l'image automatique</strong><small>En changeant d'onglet pendant une vidéo avec le son, elle continue dans une petite fenêtre ; elle revient dans la page quand vous revenez sur l'onglet.</small></div>
+          <label class="switch"><input type="checkbox" data-key="media.autoPip" /><span></span></label>
         </div>
       </div>
     </section>
