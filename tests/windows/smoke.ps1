@@ -150,6 +150,21 @@ function Click-At([int] $X, [int] $Y) {
     [SmokeNative]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
 }
 
+# Average brightness (0-255) of a region of a capture, sampled on a grid.
+function Get-Brightness([string] $File, [int] $X0, [int] $Y0, [int] $X1, [int] $Y1) {
+    $bitmap = New-Object System.Drawing.Bitmap $File
+    $sum = 0.0; $count = 0
+    for ($y = $Y0; $y -lt $Y1; $y += 12) {
+        for ($x = $X0; $x -lt $X1; $x += 12) {
+            $pixel = $bitmap.GetPixel($x, $y)
+            $sum += ($pixel.R + $pixel.G + $pixel.B) / 3.0
+            $count++
+        }
+    }
+    $bitmap.Dispose()
+    return [int]($sum / [Math]::Max(1, $count))
+}
+
 function Test-PictureInPicture {
     return [bool]([SmokeNative]::EngineWindowTitles() | Where-Object { $_ -match 'icture|incrustation' })
 }
@@ -308,7 +323,16 @@ try {
     New-Backdrop $backdrop
     Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light' -NewTabButton 'AfterTabs' -Backdrop $backdrop -ForceDark
     $app = Start-Navigatueur
-    Save-Shot 'classique-droite-clair-sites-sombres' | Out-Null
+    Save-Shot 'classique-droite-clair' | Out-Null
+    # Wikipedia (2nd tab) has no dark theme of its own here: the engine darkens it.
+    Send-Keys @($VK_CONTROL, 0x32)
+    Start-Sleep -Seconds 6
+    $darkShot = Save-Shot 'classique-wikipedia-assombri'
+    $pageBrightness = Get-Brightness $darkShot 20 70 ($W - 300) ($H - 70)
+    Write-Host "  luminosité moyenne de la page : $pageBrightness"
+    if ($pageBrightness -gt 110) {
+        $script:failures += "Mode sombre forcé : Wikipédia devrait être sombre (luminosité moyenne $pageBrightness)"
+    }
     Send-Keys @($VK_CONTROL, (VK 'T'))
     Start-Sleep -Seconds 3
     Save-Shot 'classique-fond-aligne-nouvel-onglet' | Out-Null
@@ -375,7 +399,10 @@ function start() {
     Start-Sleep -Seconds 3
     $pipAgain = Test-PictureInPicture
     Write-Host "  image dans l image après être passé au 3e onglet : $pipAgain"
-    # Middle click on the video's row (the first one) in the tab column.
+    # Middle click on the video's row, the first one in the tab column. Out of the
+    # address bar first, so the toolbar folds away and the column starts at the top.
+    Send-Keys @($VK_ESCAPE)
+    Move-Mouse $cx $cy 1500
     Move-Mouse 12 $cy 900
     Move-Mouse 140 66 600
     [SmokeNative]::mouse_event(0x0020, 0, 0, 0, [UIntPtr]::Zero)

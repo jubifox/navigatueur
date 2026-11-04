@@ -428,7 +428,7 @@
           next to the hovered row on the page's side of the column; never takes the mouse.
         -->
         <Popup x:Name="PreviewPopup" AllowsTransparency="True" StaysOpen="True" Focusable="False"
-               IsHitTestVisible="False" Placement="Right" HorizontalOffset="5" VerticalOffset="-14">
+               IsHitTestVisible="False" Placement="Right" HorizontalOffset="16" VerticalOffset="-14">
             <Border Style="{StaticResource PopupCard}" Width="276" Padding="0" IsHitTestVisible="False">
                 <StackPanel>
                     <Border Height="155" CornerRadius="11,11,0,0" BorderThickness="0,0,0,1"

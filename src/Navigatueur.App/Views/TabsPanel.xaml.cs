@@ -269,7 +269,7 @@ public partial class TabsPanel : UserControl, IShellPanel
         PreviewPopup.DataContext = tab;
         PreviewPopup.PlacementTarget = row;
         PreviewPopup.Placement = left ? PlacementMode.Right : PlacementMode.Left;
-        PreviewPopup.HorizontalOffset = left ? 5 : -5;
+        PreviewPopup.HorizontalOffset = left ? 16 : -16;
         PreviewPopup.IsOpen = true;
     }
 
