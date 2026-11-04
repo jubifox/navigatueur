@@ -268,8 +268,7 @@ try {
     Write-Host '== Mode classique, colonne à droite, thème clair, fond d image, bouton sous les onglets'
     # Where Settings copies a picked picture: the new-tab page only loads images from there.
     New-Item -ItemType Directory -Force -Path (Join-Path $dataDir 'Backgrounds') | Out-Null
-    $backdrop = Join-Path $dataDir 'Backgrounds
-ewtab.png'
+    $backdrop = Join-Path (Join-Path $dataDir 'Backgrounds') 'newtab.png'
     New-Backdrop $backdrop
     Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light' -NewTabButton 'AfterTabs' -Backdrop $backdrop
     $app = Start-Navigatueur
