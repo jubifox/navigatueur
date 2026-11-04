@@ -33,9 +33,9 @@ function makeState(overrides = {}) {
   const base = {
     type: "nv:state",
     isPrivate: false,
-    theme: { mode: "Dark", accent: "#4C8DFF", newTabBackground: null, hasChromeBackground: false, cursorTrail: true },
+    theme: { mode: "Dark", accent: "#4C8DFF", newTabBackground: null, hasChromeBackground: false, chromeFollowsNewTab: true, cursorTrail: true },
     interface: {
-      mode: "Immersive", toolbarAutoHide: true, sidebarAutoHide: true, sidebarSide: "Left", sidebarWidth: 280,
+      mode: "Immersive", toolbarAutoHide: true, sidebarAutoHide: true, sidebarSide: "Left", newTabButton: "Bottom", sidebarWidth: 280,
       edgeReveal: true, revealDelay: 150, hideDelay: 600, triggerSize: 6, sidebarTriggerSize: 18, animations: true, panelEffects: true,
     },
     navigation: {
@@ -180,6 +180,12 @@ test("settings: controls send the right setting keys and values", async (browser
   await page.click('[data-key="interface.sidebarSide"] [data-value="Right"]');
   assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.sidebarSide", value: "Right" });
 
+  await page.click('[data-key="interface.newTabButton"] [data-value="AfterTabs"]');
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.newTabButton", value: "AfterTabs" });
+
+  await page.click('label.switch:has([data-key="appearance.chromeFollowsNewTab"])');
+  assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "appearance.chromeFollowsNewTab", value: false });
+
   await page.click('label.switch:has([data-key="interface.animations"])');
   assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "interface.animations", value: false });
 
@@ -213,6 +219,16 @@ test("settings: controls send the right setting keys and values", async (browser
 
   await page.click('[data-action="extensions.open"]');
   assert.deepStrictEqual(await lastOfType(page, "nv:action"), { type: "nv:action", name: "extensions.open" });
+});
+
+test("settings: the panels' own image row is greyed out while they follow the new-tab page", async (browser) => {
+  const { page } = await openPage(browser, "settings.html");
+  await deliver(page, makeState());
+  assert.strictEqual(await page.locator("[data-own-chrome].disabled").count(), 1);
+  assert.strictEqual(await page.getAttribute('[data-key="interface.newTabButton"] [data-value="Bottom"]', "aria-pressed"), "true");
+
+  await deliver(page, makeState({ theme: { chromeFollowsNewTab: false } }));
+  assert.strictEqual(await page.locator("[data-own-chrome].disabled").count(), 0);
 });
 
 test("settings: disabling edge reveal greys out its timing rows", async (browser) => {

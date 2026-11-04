@@ -22,6 +22,16 @@ public enum PanelSide
     Right,
 }
 
+/// <summary>Where the tab column's "Nouvel onglet" button sits.</summary>
+public enum NewTabButtonPosition
+{
+    /// <summary>Pinned to the bottom of the column, whatever the number of tabs.</summary>
+    Bottom,
+
+    /// <summary>Right under the last tab, scrolling with the list.</summary>
+    AfterTabs,
+}
+
 /// <summary>How one panel (toolbar or tab column) behaves, once the mode has been resolved.</summary>
 public enum PanelBehavior
 {
@@ -67,6 +77,9 @@ public sealed class InterfaceSettings
 
     public double SidebarWidth { get; set; } = 280;
 
+    /// <summary>One of <see cref="NewTabButtonPosition"/>'s names.</summary>
+    public string NewTabButtonPlacement { get; set; } = nameof(NewTabButtonPosition.Bottom);
+
     /// <summary>Master switch for hover reveal. When off, auto-hidden panels only appear through the keyboard or the toolbar button.</summary>
     public bool IsEdgeRevealEnabled { get; set; } = true;
 
@@ -106,6 +119,12 @@ public sealed class InterfaceSettings
             ? side
             : PanelSide.Left;
 
+    [JsonIgnore]
+    public NewTabButtonPosition NewTabButtonPlacementValue =>
+        Enum.TryParse<NewTabButtonPosition>(NewTabButtonPlacement, ignoreCase: true, out var placement) && Enum.IsDefined(placement)
+            ? placement
+            : NewTabButtonPosition.Bottom;
+
     public PanelBehavior ResolveToolbarBehavior() => ModeValue switch
     {
         InterfaceMode.Classic => PanelBehavior.Docked,
@@ -144,6 +163,7 @@ public sealed class InterfaceSettings
     {
         Mode = ModeValue.ToString();
         SidebarSide = SidebarSideValue.ToString();
+        NewTabButtonPlacement = NewTabButtonPlacementValue.ToString();
         SidebarWidth = double.IsFinite(SidebarWidth) ? Math.Clamp(SidebarWidth, MinSidebarWidth, MaxSidebarWidth) : 280;
         RevealDelayMilliseconds = Math.Clamp(RevealDelayMilliseconds, 0, MaxRevealDelayMilliseconds);
         HideDelayMilliseconds = Math.Clamp(HideDelayMilliseconds, 0, MaxHideDelayMilliseconds);

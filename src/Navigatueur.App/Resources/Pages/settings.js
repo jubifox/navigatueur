@@ -18,9 +18,11 @@
   var STATE_PATHS = {
     "theme.mode": "theme.mode",
     "appearance.cursorTrail": "theme.cursorTrail",
+    "appearance.chromeFollowsNewTab": "theme.chromeFollowsNewTab",
     "interface.toolbarAutoHide": "interface.toolbarAutoHide",
     "interface.sidebarAutoHide": "interface.sidebarAutoHide",
     "interface.sidebarSide": "interface.sidebarSide",
+    "interface.newTabButton": "interface.newTabButton",
     "interface.sidebarWidth": "interface.sidebarWidth",
     "interface.edgeReveal": "interface.edgeReveal",
     "interface.revealDelay": "interface.revealDelay",
@@ -224,6 +226,9 @@
     var ui = state.interface || {};
     $all(".mode[data-mode]").forEach(function (button) {
       button.setAttribute("aria-pressed", String(button.getAttribute("data-mode") === ui.mode));
+    });
+    $all("[data-own-chrome]").forEach(function (row) {
+      row.classList.toggle("disabled", !!(state.theme && state.theme.chromeFollowsNewTab));
     });
     $all("[data-reveal]").forEach(function (row) {
       row.classList.toggle("disabled", !ui.edgeReveal);

@@ -22,6 +22,13 @@ public interface IShellPanel
     /// its docked look (flush, flat, separated by a hairline).
     /// </summary>
     void ApplyChrome(bool floating, bool effects, PanelSide side, double shadowSize);
+
+    /// <summary>
+    /// Places the panel's background image: <paramref name="window"/> is the
+    /// window's area in the panel's own coordinates. The image covers it
+    /// whole, so every panel shows the part of one picture that lies under it.
+    /// </summary>
+    void PlaceWallpaper(Rect window);
 }
 
 /// <summary>
@@ -304,6 +311,8 @@ public sealed class ImmersiveShell
 
         Place(_toolbarHost, _layout.Toolbar, _layout.IsToolbarVisible);
         Place(_sidebarHost, _layout.Sidebar, _layout.IsSidebarVisible);
+        _toolbar.PlaceWallpaper(new Rect(-Math.Round(_layout.Toolbar.X), -Math.Round(_layout.Toolbar.Y), width, height));
+        _sidebar.PlaceWallpaper(new Rect(-Math.Round(_layout.Sidebar.X), -Math.Round(_layout.Sidebar.Y), width, height));
 
         var content = _layout.Content;
         _content.Margin = new Thickness(content.X, content.Y, width - content.Right, height - content.Bottom);

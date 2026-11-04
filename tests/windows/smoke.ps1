@@ -50,7 +50,22 @@ $crashLog = Join-Path $dataDir 'crash.log'
 $script:step = 0
 $script:failures = @()
 
-function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme = 'Dark') {
+# A colourful picture, so captures show whether the panels' background lines up with the page's.
+function New-Backdrop([string] $Path) {
+    $bitmap = New-Object System.Drawing.Bitmap 1600, 1000
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $rect = New-Object System.Drawing.Rectangle 0, 0, 1600, 1000
+    $brush = New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, ([System.Drawing.Color]::FromArgb(255, 40, 90, 220)), ([System.Drawing.Color]::FromArgb(255, 230, 70, 120)), 35
+    $graphics.FillRectangle($brush, $rect)
+    for ($i = 0; $i -lt 8; $i++) {
+        $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(255, 255, 220, 80)), 14
+        $graphics.DrawEllipse($pen, 100 + $i * 170, 120 + ($i % 3) * 230, 260, 260)
+    }
+    $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $graphics.Dispose(); $bitmap.Dispose()
+}
+
+function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme = 'Dark', [string] $NewTabButton = 'Bottom', [string] $Backdrop = $null) {
     New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
     $videoGroup = '6f1c2a9e-3b4d-4e5f-8a7b-1c2d3e4f5a6b'
     $settings = [ordered]@{
@@ -67,8 +82,9 @@ function Write-Settings([string] $Mode, [string] $Side = 'Left', [string] $Theme
         ActiveTabIndex = 1
         ThemeMode      = $Theme
         SearchEngine   = 'DuckDuckGo'
-        Interface      = [ordered]@{ Mode = $Mode; SidebarSide = $Side; HasSeenIntro = $true }
+        Interface      = [ordered]@{ Mode = $Mode; SidebarSide = $Side; NewTabButtonPlacement = $NewTabButton; HasSeenIntro = $true }
     }
+    if ($Backdrop) { $settings['NewTabBackgroundImagePath'] = $Backdrop }
     $settings | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $settingsDir 'settings.json') -Encoding utf8
 }
 
@@ -249,10 +265,15 @@ try {
     Start-Sleep -Seconds 2
 
     # ------------------------------------------------------ classic mode
-    Write-Host '== Mode classique, colonne à droite, thème clair'
-    Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light'
+    Write-Host '== Mode classique, colonne à droite, thème clair, fond d image, bouton sous les onglets'
+    $backdrop = Join-Path $env:TEMP 'navigatueur-smoke-backdrop.png'
+    New-Backdrop $backdrop
+    Write-Settings -Mode 'Classic' -Side 'Right' -Theme 'Light' -NewTabButton 'AfterTabs' -Backdrop $backdrop
     $app = Start-Navigatueur
     Save-Shot 'classique-droite-clair' | Out-Null
+    Send-Keys @($VK_CONTROL, (VK 'T'))
+    Start-Sleep -Seconds 3
+    Save-Shot 'classique-fond-aligne-nouvel-onglet' | Out-Null
     Assert-Alive $app 'mode classique'
     Stop-Process -Id $app.Id -Force
     Start-Sleep -Seconds 2

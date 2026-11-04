@@ -76,6 +76,9 @@ public partial class MainWindowViewModel : ObservableObject
 
     public bool IsSidebarOnRight => AppServices.Interface.SidebarSide == PanelSide.Right;
 
+    /// <summary>"Nouvel onglet" sits right under the last tab instead of at the bottom of the column (Settings → Interface).</summary>
+    public bool IsNewTabButtonAfterTabs => AppServices.Interface.Current.NewTabButtonPlacementValue == NewTabButtonPosition.AfterTabs;
+
     /// <summary>Set by the window; drives the maximize/restore glyph.</summary>
     [ObservableProperty]
     private bool isMaximized;
@@ -118,6 +121,7 @@ public partial class MainWindowViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(IsSidebarDocked));
         OnPropertyChanged(nameof(IsSidebarOnRight));
+        OnPropertyChanged(nameof(IsNewTabButtonAfterTabs));
     }
 
     private void OnBookmarksChanged(object? sender, EventArgs e)

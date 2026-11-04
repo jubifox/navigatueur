@@ -125,6 +125,16 @@ public partial class TabsPanel : UserControl, IShellPanel
         }
     }
 
+    public void PlaceWallpaper(Rect window)
+    {
+        // Relative to the layer, which sits inside Body (offset by any shadow margin).
+        var origin = WallpaperLayer.IsLoaded ? WallpaperLayer.TranslatePoint(default, this) : default;
+        Canvas.SetLeft(Wallpaper, window.X - origin.X);
+        Canvas.SetTop(Wallpaper, window.Y - origin.Y);
+        Wallpaper.Width = window.Width;
+        Wallpaper.Height = window.Height;
+    }
+
     /// <summary>Moves keyboard focus onto the active tab's row (Ctrl+Shift+A), so arrows/Enter/Delete work straight away.</summary>
     public void FocusActiveTab()
     {

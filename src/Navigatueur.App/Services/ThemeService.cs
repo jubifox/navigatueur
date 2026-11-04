@@ -85,10 +85,17 @@ public partial class ThemeService : ObservableObject
     private string accentColorHex;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveChromeBackgroundImagePath))]
     private string? chromeBackgroundImagePath;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveChromeBackgroundImagePath))]
     private string? newTabBackgroundImagePath;
+
+    /// <summary>True when the toolbar and tab column show the new-tab page's background instead of an image of their own.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EffectiveChromeBackgroundImagePath))]
+    private bool chromeUsesNewTabBackground;
 
     [ObservableProperty]
     private bool isCursorTrailEnabled;
@@ -100,6 +107,7 @@ public partial class ThemeService : ObservableObject
         accentColorHex = settings.AccentColorHex;
         chromeBackgroundImagePath = settings.ChromeBackgroundImagePath;
         newTabBackgroundImagePath = settings.NewTabBackgroundImagePath;
+        chromeUsesNewTabBackground = settings.ResolveChromeUsesNewTabBackground();
         isCursorTrailEnabled = settings.IsCursorTrailEnabled;
 
         ApplyPalette();
@@ -109,6 +117,16 @@ public partial class ThemeService : ObservableObject
     public event EventHandler? AppearanceChanged;
 
     public bool IsDark => !string.Equals(ThemeMode, "Light", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The image the toolbar and tab column show, if any.</summary>
+    public string? EffectiveChromeBackgroundImagePath => ChromeUsesNewTabBackground ? NewTabBackgroundImagePath : ChromeBackgroundImagePath;
+
+    public void SetChromeUsesNewTabBackground(bool follows)
+    {
+        ChromeUsesNewTabBackground = follows;
+        _settings.ChromeUsesNewTabBackground = follows;
+        Persist();
+    }
 
     public void SetCursorTrailEnabled(bool enabled)
     {
@@ -143,6 +161,10 @@ public partial class ThemeService : ObservableObject
         var stored = CopyIntoBackgrounds(sourcePath, "chrome");
         ChromeBackgroundImagePath = stored;
         _settings.ChromeBackgroundImagePath = stored;
+
+        // Picking an image for the panels means wanting to see it there.
+        ChromeUsesNewTabBackground = false;
+        _settings.ChromeUsesNewTabBackground = false;
         Persist();
     }
 

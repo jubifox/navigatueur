@@ -164,6 +164,7 @@ public static class InternalPageBridge
                 accent = isPrivate ? ThemeService.PrivateAccentHex : theme.AccentColorHex,
                 newTabBackground = BackgroundUrl(theme.NewTabBackgroundImagePath),
                 hasChromeBackground = theme.ChromeBackgroundImagePath is not null,
+                chromeFollowsNewTab = theme.ChromeUsesNewTabBackground,
                 cursorTrail = theme.IsCursorTrailEnabled,
             },
             @interface = new
@@ -172,6 +173,7 @@ public static class InternalPageBridge
                 toolbarAutoHide = ui.ResolveToolbarBehavior() == PanelBehavior.AutoHide,
                 sidebarAutoHide = ui.ResolveSidebarBehavior() == PanelBehavior.AutoHide,
                 sidebarSide = ui.SidebarSideValue.ToString(),
+                newTabButton = ui.NewTabButtonPlacementValue.ToString(),
                 sidebarWidth = ui.SidebarWidth,
                 edgeReveal = ui.IsEdgeRevealEnabled,
                 revealDelay = ui.RevealDelayMilliseconds,
@@ -265,6 +267,9 @@ public static class InternalPageBridge
             case "appearance.cursorTrail" when AsBool(value) is { } trail:
                 AppServices.Theme.SetCursorTrailEnabled(trail);
                 break;
+            case "appearance.chromeFollowsNewTab" when AsBool(value) is { } follows:
+                AppServices.Theme.SetChromeUsesNewTabBackground(follows);
+                break;
 
             case "interface.mode" when AsString(value) is { } mode:
                 AppServices.Interface.Update(s => s.Mode = mode);
@@ -277,6 +282,9 @@ public static class InternalPageBridge
                 break;
             case "interface.sidebarSide" when AsString(value) is { } side:
                 AppServices.Interface.Update(s => s.SidebarSide = side);
+                break;
+            case "interface.newTabButton" when AsString(value) is { } placement:
+                AppServices.Interface.Update(s => s.NewTabButtonPlacement = placement);
                 break;
             case "interface.sidebarWidth" when AsDouble(value) is { } width:
                 AppServices.Interface.Update(s => s.SidebarWidth = width);

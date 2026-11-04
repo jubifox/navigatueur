@@ -123,6 +123,39 @@ public class InterfaceSettingsTests
     }
 
     [Fact]
+    public void NewTabButton_StaysAtTheBottomByDefault_AndRepairsUnknownValues()
+    {
+        Assert.Equal(NewTabButtonPosition.Bottom, new InterfaceSettings().NewTabButtonPlacementValue);
+
+        var settings = new InterfaceSettings { NewTabButtonPlacement = "Sideways" };
+        settings.Normalize();
+        Assert.Equal("Bottom", settings.NewTabButtonPlacement);
+
+        settings.NewTabButtonPlacement = "aftertabs";
+        settings.Normalize();
+        Assert.Equal(NewTabButtonPosition.AfterTabs, settings.NewTabButtonPlacementValue);
+        Assert.Equal("AfterTabs", settings.NewTabButtonPlacement);
+    }
+
+    [Theory]
+    [InlineData(null, null, true, "newtab.jpg")]            // older file, no panel image: follows the new-tab page
+    [InlineData(null, "chrome.png", false, "chrome.png")]    // older file with its own panel image: keeps it
+    [InlineData(true, "chrome.png", true, "newtab.jpg")]     // chosen explicitly
+    [InlineData(false, null, false, null)]                   // own image chosen off, none picked: no image
+    public void ChromeBackground_FollowsTheNewTabPage_UnlessThePanelsHaveTheirOwn(bool? follows, string? chrome, bool expectedFollows, string? expectedImage)
+    {
+        var settings = new AppSettings
+        {
+            NewTabBackgroundImagePath = "newtab.jpg",
+            ChromeBackgroundImagePath = chrome,
+            ChromeUsesNewTabBackground = follows,
+        };
+
+        Assert.Equal(expectedFollows, settings.ResolveChromeUsesNewTabBackground());
+        Assert.Equal(expectedImage, settings.ResolveChromeBackgroundImagePath());
+    }
+
+    [Fact]
     public void Normalize_NaNWidth_ResetsToDefault()
     {
         var settings = new InterfaceSettings { SidebarWidth = double.NaN };

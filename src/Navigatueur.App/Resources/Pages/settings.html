@@ -451,6 +451,13 @@
           </div>
         </div>
         <div class="row">
+          <div class="text"><strong>Bouton « Nouvel onglet »</strong><small>En bas de la colonne, ou juste sous le dernier onglet ouvert.</small></div>
+          <div class="segmented" data-key="interface.newTabButton">
+            <button data-value="Bottom" aria-pressed="false">En bas</button>
+            <button data-value="AfterTabs" aria-pressed="false">Sous les onglets</button>
+          </div>
+        </div>
+        <div class="row">
           <div class="text"><strong>Largeur de la colonne</strong><small>Se règle aussi en tirant le bord de la colonne.</small></div>
           <div class="range"><input type="range" min="200" max="440" step="10" data-key="interface.sidebarWidth" data-unit=" px" /><output></output></div>
         </div>
@@ -518,7 +525,11 @@
           <button class="btn ghost" data-action="background.newtab.reset">Retirer</button>
         </div>
         <div class="row">
-          <div class="text"><strong>Fond des panneaux</strong><small>Image discrète derrière la barre d'outils et les onglets.</small></div>
+          <div class="text"><strong>Même fond pour la barre et les onglets</strong><small>La barre d'outils et la colonne d'onglets reprennent l'image de la page nouvel onglet, alignée sur elle.</small></div>
+          <label class="switch"><input type="checkbox" data-key="appearance.chromeFollowsNewTab" /><span></span></label>
+        </div>
+        <div class="row" data-own-chrome>
+          <div class="text"><strong>Fond des panneaux</strong><small>Une image à part, discrète, derrière la barre d'outils et les onglets.</small></div>
           <button class="btn" data-action="background.chrome.choose">Choisir une image…</button>
           <button class="btn ghost" data-action="background.chrome.reset">Retirer</button>
         </div>

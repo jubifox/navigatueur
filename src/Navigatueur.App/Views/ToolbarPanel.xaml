@@ -15,15 +15,22 @@
                 BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,0,1"
                 MouseLeftButtonDown="OnBodyMouseLeftButtonDown">
             <Grid ClipToBounds="True">
-                <!-- Optional user background image, behind a wash so controls stay readable. -->
-                <Image Source="{Binding Theme.ChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}"
-                       Stretch="UniformToFill" Opacity="0.35" IsHitTestVisible="False" />
+                <!-- Background image: sized to the whole window and placed by PlaceWallpaper, so the
+                     toolbar and the tab column each show their part of one picture, lined up with the page's. -->
+                <Canvas x:Name="WallpaperLayer" IsHitTestVisible="False">
+                    <Rectangle x:Name="Wallpaper" Opacity="0.35">
+                        <Rectangle.Fill>
+                            <ImageBrush ImageSource="{Binding Theme.EffectiveChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}"
+                                        Stretch="UniformToFill" />
+                        </Rectangle.Fill>
+                    </Rectangle>
+                </Canvas>
                 <!-- The site's own theme-color, as a faint tint — the toolbar takes on the page's identity. -->
                 <Border IsHitTestVisible="False" Opacity="0.55">
                     <Border.Background>
                         <MultiBinding Converter="{StaticResource SiteAccentGradientConverter}">
                             <Binding Path="ActiveTab.SiteAccentColorHex" />
-                            <Binding Path="Theme.ChromeBackgroundImagePath" />
+                            <Binding Path="Theme.EffectiveChromeBackgroundImagePath" />
                         </MultiBinding>
                     </Border.Background>
                 </Border>

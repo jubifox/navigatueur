@@ -318,8 +318,16 @@
                 Background="{DynamicResource PanelBrush}"
                 BorderBrush="{DynamicResource PanelBorderBrush}" BorderThickness="0,0,1,0">
             <Grid ClipToBounds="True">
-                <Image Source="{Binding Theme.ChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}"
-                       Stretch="UniformToFill" Opacity="0.35" IsHitTestVisible="False" />
+                <!-- Background image: sized to the whole window and placed by PlaceWallpaper, so the
+                     toolbar and the tab column each show their part of one picture, lined up with the page's. -->
+                <Canvas x:Name="WallpaperLayer" IsHitTestVisible="False">
+                    <Rectangle x:Name="Wallpaper" Opacity="0.35">
+                        <Rectangle.Fill>
+                            <ImageBrush ImageSource="{Binding Theme.EffectiveChromeBackgroundImagePath, Converter={StaticResource PathToImageSourceConverter}}"
+                                        Stretch="UniformToFill" />
+                        </Rectangle.Fill>
+                    </Rectangle>
+                </Canvas>
 
                 <DockPanel>
                     <!-- Header -->
@@ -370,7 +378,8 @@
                                 <TextBlock Text="Groupes enregistrés" Foreground="{DynamicResource TextSecondaryBrush}" />
                             </StackPanel>
                         </Button>
-                        <Button HorizontalContentAlignment="Stretch" Padding="10,7" Command="{Binding NewTabCommand}">
+                        <Button HorizontalContentAlignment="Stretch" Padding="10,7" Command="{Binding NewTabCommand}"
+                                Visibility="{Binding IsNewTabButtonAfterTabs, Converter={StaticResource InverseBoolToVis}}">
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Right" Text="Ctrl+T" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" />
                                 <Path DockPanel.Dock="Left" Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,10,0"
@@ -382,8 +391,20 @@
 
                     <!-- Tabs -->
                     <ScrollViewer x:Name="TabsScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <ItemsControl x:Name="TabsList" ItemsSource="{Binding TabStripItems}" Margin="0,0,0,6"
-                                      KeyboardNavigation.DirectionalNavigation="Contained" KeyboardNavigation.TabNavigation="Once" />
+                        <StackPanel>
+                            <ItemsControl x:Name="TabsList" ItemsSource="{Binding TabStripItems}" Margin="0,0,0,6"
+                                          KeyboardNavigation.DirectionalNavigation="Contained" KeyboardNavigation.TabNavigation="Once" />
+                            <!-- The same button, right under the last tab, when chosen in Settings → Interface. -->
+                            <Button HorizontalContentAlignment="Stretch" Padding="10,7" Margin="8,-4,8,6" Command="{Binding NewTabCommand}"
+                                    Visibility="{Binding IsNewTabButtonAfterTabs, Converter={StaticResource BoolToVis}}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Right" Text="Ctrl+T" FontSize="11.5" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" />
+                                    <Path DockPanel.Dock="Left" Data="{StaticResource IconPlus}" Style="{StaticResource VectorIcon}" Width="14" Height="14" Margin="0,0,10,0"
+                                          Stroke="{DynamicResource TextSecondaryBrush}" />
+                                    <TextBlock Text="Nouvel onglet" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </DockPanel>
+                            </Button>
+                        </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
 

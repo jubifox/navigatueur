@@ -42,6 +42,20 @@ public sealed class AppSettings
     /// <summary>Local copy under the app's own data folder — never the original user-picked path, which could move or be deleted.</summary>
     public string? NewTabBackgroundImagePath { get; set; }
 
+    /// <summary>
+    /// Whether the toolbar and tab column show the new-tab page's background
+    /// rather than an image of their own. Null in files from before the
+    /// choice existed: they follow the new-tab page unless a panel image was
+    /// already picked (see <see cref="ResolveChromeUsesNewTabBackground"/>).
+    /// </summary>
+    public bool? ChromeUsesNewTabBackground { get; set; }
+
+    public bool ResolveChromeUsesNewTabBackground() => ChromeUsesNewTabBackground ?? ChromeBackgroundImagePath is null;
+
+    /// <summary>The image the toolbar and tab column actually show, if any.</summary>
+    public string? ResolveChromeBackgroundImagePath() =>
+        ResolveChromeUsesNewTabBackground() ? NewTabBackgroundImagePath : ChromeBackgroundImagePath;
+
     /// <summary>Which search engine both the address bar and the new-tab page's search box use. One of the ids in SearchEngineService.Engines.</summary>
     public string SearchEngine { get; set; } = "Bing";
 
