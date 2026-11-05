@@ -11,8 +11,12 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // GeckoView, Firefox's engine for Android.
+        maven("https://maven.mozilla.org/maven2/") {
+            content { includeGroup("org.mozilla.geckoview") }
+        }
     }
 }
 
-rootProject.name = "Navigatueur Mobile"
+rootProject.name = "Navigatueur"
 include(":app")
