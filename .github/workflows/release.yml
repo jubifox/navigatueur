@@ -7,6 +7,11 @@
 #   v0.18.0-rc1   → pre-release: downloadable for testing, never offered by
 #                   the updater (it only looks at the latest release).
 #
+# Before an official release, the version commit updates
+# Navigatueur.App.csproj, installer/Navigatueur.iss, docs/releases/vX.Y.Z.md
+# and the download links in README.md (section "Télécharger"); the first step
+# checks all of them.
+#
 # The installer is built on Windows by packaging/windows/build-release.ps1.
 # If the repository variable WEBVIEW2_CAB_URL points to a WebView2 "Fixed
 # Version" x64 CAB, that engine is bundled into the installer; otherwise the
@@ -38,6 +43,7 @@ jobs:
           $tag = '${{ github.ref_name }}'
           if ($tag -notmatch '^v(\d+\.\d+\.\d+)(-.+)?$') { throw "Unexpected tag format: $tag" }
           $version = $Matches[1]
+          $prerelease = [bool]$Matches[2]
           $csproj = [xml](Get-Content src/Navigatueur.App/Navigatueur.App.csproj)
           $appVersion = ($csproj.Project.PropertyGroup | Where-Object Version).Version
           $issVersion = (Select-String -Path installer/Navigatueur.iss -Pattern '#define MyAppVersion "(.+)"').Matches[0].Groups[1].Value
@@ -46,8 +52,18 @@ jobs:
           }
           $notes = "docs/releases/v$version.md"
           if (-not (Test-Path $notes)) { throw "Missing release notes: $notes" }
+          if (-not $prerelease) {
+            # The README's download links name the files of the latest official
+            # release (pre-releases leave them alone).
+            $readme = Get-Content README.md -Raw
+            $section = [regex]::Match($readme, '(?ms)^## Télécharger\s*$.*?(?=^## )').Value
+            $versions = @([regex]::Matches($section, '\d+\.\d+\.\d+') | ForEach-Object Value | Sort-Object -Unique)
+            if ($versions.Count -ne 1 -or $versions[0] -ne $version) {
+              throw "README.md, section Télécharger: links are for $($versions -join ', '), expected $version only."
+            }
+          }
           "version=$version" >> $env:GITHUB_OUTPUT
-          "prerelease=$([bool]$Matches[2])".ToLower() >> $env:GITHUB_OUTPUT
+          "prerelease=$prerelease".ToLower() >> $env:GITHUB_OUTPUT
           "notes=$notes" >> $env:GITHUB_OUTPUT
 
       - name: Make sure Inno Setup is available
