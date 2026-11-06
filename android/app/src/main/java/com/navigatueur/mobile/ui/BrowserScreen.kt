@@ -254,6 +254,7 @@ private fun GeckoViewHost(
             NvGeckoView(context).apply {
                 coverUntilFirstPaint(background)
                 pullThreshold = threshold
+                isScrolledToTop = { (controller.activeTab?.scrollY ?: 1) <= 1 }
                 onPull = { distance -> pull.distance = distance }
                 onPullEnd = { reload ->
                     pull.distance = 0f

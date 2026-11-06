@@ -102,6 +102,7 @@ class TabSession(
     // ---------------------------------------------------------- progress
 
     override fun onPageStart(session: GeckoSession, url: String) {
+        tab.scrollY = 0
         tab.isLoading = true
         tab.securityKnown = false
         tab.progress = 5
@@ -204,6 +205,7 @@ class TabSession(
     // ------------------------------------------------------------ scroll
 
     override fun onScrollChanged(session: GeckoSession, scrollX: Int, scrollY: Int) {
+        tab.scrollY = scrollY
         if (isActive) controller.toolbar.onPageScrolled(scrollY)
     }
 
