@@ -73,3 +73,49 @@ est reprise comme fond « Image ».
   appliqué, dégradé, menu en grille, vue en liste, historique de l'onglet,
   suggestions) et prend une capture à chaque étape. Les captures sont publiées
   sur la branche `ci/android-captures`.
+
+## 4. Résultats
+
+Tout a été vérifié sur la CI Android (`.github/workflows/android.yml`) : la
+compilation, 36 tests unitaires (dont 21 nouveaux), puis le scénario complet
+sur un émulateur Pixel 6 (Android 14). Les captures de chaque étape sont sur
+la branche `ci/android-captures`.
+
+Ce que les captures montrent, dans l'ordre du scénario :
+
+| Étape | Vérifié |
+|---|---|
+| Page d'accueil au premier lancement | Lueur bleue d'origine, barre d'outils en bas |
+| Tirer pour actualiser (Wikipédia, puis example.com) | Correction en cours de vérification (voir plus bas) |
+| Défilement | La barre s'efface en lisant et revient en remontant |
+| Saisie d'adresse | Suggestions de Bing (« meteo france », « meteociel »…), choix ponctuel du moteur, touches www. / .com / .fr / .org / / / https:// au-dessus du clavier |
+| Menu ⋯ | Page et étoile, Retour / Avancer / Recharger / Accueil, extensions, grille de 16 tuiles |
+| Appui long sur Retour | « Pages de cet onglet » : example.com (affichée) et Wikipédia |
+| Glissement vers le haut sur la barre | Vue des onglets ; passage grille ↔ liste |
+| Personnaliser | Aperçu en direct, thèmes, couleurs, palette d'accent |
+| Thème « Aurore » | Dégradé, accent corail, teinte des panneaux, appliqués partout |
+| Fond dans toute l'application | Vue des onglets, Personnaliser et Paramètres sur le dégradé |
+| Boutons Accueil et Partager ajoutés | Visibles dans la barre ; le bouton Accueil ouvre la page d'accueil |
+| Page d'accueil personnalisée | Horloge, « Bonsoir · Vendredi 6 novembre », titre, sites fréquents (Example, Wikipedia) |
+| Glisser un onglet | Onglet fermé, message « Onglet fermé · Annuler », l'onglet revient |
+| Paramètres | Section Apparence (Personnaliser, thème), Interface (gestes, tirer pour actualiser), Accessibilité |
+
+Ce que les passages successifs ont permis de corriger :
+
+- Une fenêtre système « Pixel Launcher isn't responding » recouvrait toutes
+  les captures de l'ancien scénario sans le faire échouer ; elle est
+  maintenant fermée avant chaque capture.
+- Activer « Fond dans toute l'application » ramenait Personnaliser tout en
+  haut : le fond change désormais sous le même contenu.
+- Le glissement pour fermer un onglet ne réagissait pas : il utilise
+  maintenant le composant de Material (`SwipeToDismissBox`).
+- Tirer pour actualiser ne démarrait jamais : le moteur signale qu'une page
+  tout en haut peut encore « défiler vers le haut » (à cause de la barre
+  coulissante). C'est la position de défilement de la page qui décide
+  maintenant ; le journal `NvPull` des versions de test a servi à le voir.
+- « Radial » et « Nouvel onglet » étaient coupés dans Personnaliser ; la croix
+  sous une carte d'onglet se voyait à travers les panneaux translucides.
+
+Non couvert par l'émulateur : la recherche vocale (pas de reconnaissance
+vocale sur l'image de test), le flou de l'image de fond (Android 12+, image
+choisie dans la galerie), le retour haptique.
