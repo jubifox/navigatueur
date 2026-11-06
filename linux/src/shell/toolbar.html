@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src * data: navigatueur:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>Barre d'outils</title>
+  <link rel="stylesheet" href="shell.css">
+  <style>
+    #bar {
+      position: relative;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+      -webkit-app-region: drag;
+      overflow: hidden;
+    }
+    #wallpaper {
+      position: absolute;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+    #bar > * { position: relative; }
+    .group { display: flex; align-items: center; }
+    .address {
+      flex: 1;
+      min-width: 120px;
+      height: 34px;
+      margin: 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 6px 0 12px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid transparent;
+      -webkit-app-region: no-drag;
+      transition: border-color 0.12s ease, background-color 0.12s ease;
+    }
+    .address:hover { background: var(--surface-hover); }
+    .address.focused { border-color: var(--accent); background: var(--surface); }
+    .address .sec { color: var(--text3); display: grid; place-items: center; }
+    .address img.favicon { width: 16px; height: 16px; border-radius: 3px; }
+    #address {
+      flex: 1;
+      min-width: 0;
+      background: none;
+      border: 0;
+      outline: none;
+      color: var(--text);
+      font: inherit;
+      font-size: 13.5px;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    #address::placeholder { color: var(--text3); }
+    #star { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--text3); }
+    #star:hover { background: var(--surface-hover); color: var(--text); }
+    #star.on { color: var(--accent); }
+    #star.on .icon { fill: var(--accent); }
+    .sep { width: 1px; height: 18px; background: var(--panel-border); margin: 0 6px; }
+    .caption { width: 36px; }
+    .caption.close:hover > .chip { background: var(--danger); color: #fff; }
+    #downloadsBtn { position: relative; }
+    #downloadsBtn .badge {
+      position: absolute; top: 9px; right: 3px; min-width: 15px; height: 15px; border-radius: 8px;
+      background: var(--accent); color: var(--accent-fg); font-size: 10px; font-weight: 700; display: none; place-items: center; padding: 0 4px;
+    }
+    #downloadsBtn.active .badge { display: grid; }
+    #menuBtn .dot { position: absolute; top: 10px; right: 5px; width: 7px; height: 7px; border-radius: 4px; background: var(--accent); display: none; }
+    #menuBtn.update .dot { display: block; }
+    #menuBtn { position: relative; }
+
+    #find {
+      height: 44px;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--panel-border);
+    }
+    body.find-open #find { display: flex; }
+    #find input {
+      width: 260px; height: 30px; border-radius: 8px; border: 1px solid var(--panel-border); background: var(--surface);
+      color: var(--text); padding: 0 10px; outline: none; font: inherit; user-select: text;
+    }
+    #find input:focus { border-color: var(--accent); }
+    #findCount { color: var(--text2); min-width: 56px; }
+
+    .dropdown {
+      position: absolute;
+      top: 46px;
+      overflow: hidden;
+      padding: 6px;
+      display: none;
+    }
+    .dropdown.open { display: block; }
+    #suggestions .row, #downloads .row {
+      display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; color: var(--text);
+    }
+    #suggestions .row.sel, #suggestions .row:hover, #downloads .row:hover { background: var(--surface-hover); }
+    .row .badge-icon { width: 28px; height: 28px; border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--text2); flex: none; }
+    .row.primary .badge-icon { background: var(--accent-soft); color: var(--accent); }
+    .row .texts { min-width: 0; flex: 1; }
+    .row .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
+    .row .sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text3); font-size: 12px; }
+    #downloads { right: 60px; width: 380px; max-height: 440px; overflow-y: auto; }
+    #downloads h3 { margin: 6px 10px 8px; font-size: 13px; color: var(--text2); font-weight: 600; }
+    #downloads .empty { color: var(--text3); padding: 18px 10px; text-align: center; }
+    #downloads .bar { height: 3px; border-radius: 2px; background: var(--surface-active); margin-top: 6px; overflow: hidden; }
+    #downloads .bar > i { display: block; height: 100%; background: var(--accent); }
+    #downloads .mini { width: 26px; height: 26px; border-radius: 6px; display: grid; place-items: center; color: var(--text2); }
+    #downloads .mini:hover { background: var(--surface-active); color: var(--text); }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <div id="wallpaper"></div>
+    <div class="group">
+      <button class="icon-btn" id="tabsBtn" title="Onglets (Ctrl+Maj+A)" style="width:40px;padding-left:6px"><span class="chip" id="tabsIcon"></span></button>
+      <button class="icon-btn" id="backBtn" title="Précédent (Alt+←)"><span class="chip"></span></button>
+      <button class="icon-btn" id="forwardBtn" title="Suivant (Alt+→)"><span class="chip"></span></button>
+      <button class="icon-btn" id="reloadBtn" title="Actualiser (Ctrl+R)"><span class="chip"></span></button>
+    </div>
+    <div class="address" id="addressBox">
+      <span class="sec" id="sec"></span>
+      <input id="address" spellcheck="false" autocomplete="off" placeholder="Rechercher ou saisir une adresse">
+      <button id="star" title="Ajouter aux favoris (Ctrl+D)"></button>
+    </div>
+    <div class="group">
+      <button class="icon-btn" id="downloadsBtn" title="Téléchargements (Ctrl+J)"><span class="chip"></span><span class="badge" id="downloadsBadge"></span></button>
+      <button class="icon-btn" id="menuBtn" title="Menu"><span class="chip"></span><span class="dot"></span></button>
+      <div class="sep"></div>
+      <button class="icon-btn caption" id="minBtn" title="Réduire"><span class="chip"></span></button>
+      <button class="icon-btn caption" id="maxBtn" title="Agrandir / Restaurer"><span class="chip"></span></button>
+      <button class="icon-btn caption close" id="closeBtn" title="Fermer" style="width:42px;padding-right:6px"><span class="chip"></span></button>
+    </div>
+  </div>
+  <div id="find">
+    <input id="findInput" placeholder="Rechercher dans la page" spellcheck="false">
+    <span id="findCount"></span>
+    <button class="icon-btn" id="findPrev" title="Précédent" style="height:36px"><span class="chip"></span></button>
+    <button class="icon-btn" id="findNext" title="Suivant" style="height:36px"><span class="chip"></span></button>
+    <button class="icon-btn" id="findClose" title="Fermer (Échap)" style="height:36px"><span class="chip"></span></button>
+  </div>
+  <div class="dropdown popup-card" id="suggestions"></div>
+  <div class="dropdown popup-card" id="downloads"></div>
+  <script src="common.js"></script>
+  <script src="toolbar.js"></script>
+</body>
+</html>

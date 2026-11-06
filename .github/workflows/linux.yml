@@ -1,0 +1,67 @@
+# Builds Navigatueur for Linux (Electron): unit tests, AppImage and .deb,
+# then starts the app on a virtual screen, reveals its panels with the mouse
+# and screenshots each step (artifact "linux-captures").
+name: Linux
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "linux/**"
+      - "src/Navigatueur.App/Navigatueur.App.csproj"
+      - "src/Navigatueur.App/Resources/Pages/**"
+      - "src/Navigatueur.App/Resources/Warning/**"
+      - "tests/linux/**"
+      - ".github/workflows/linux.yml"
+  pull_request:
+    paths:
+      - "linux/**"
+      - "tests/linux/**"
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build, unit tests, real app on a virtual screen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: linux/package-lock.json
+
+      - name: Install
+        working-directory: linux
+        run: npm ci
+
+      - name: Unit tests
+        working-directory: linux
+        run: npm test
+
+      - name: Build the AppImage and the .deb
+        working-directory: linux
+        run: npm run dist
+
+      - name: Tools for the virtual screen
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb xdotool imagemagick x11-utils > /dev/null
+
+      - name: Run it and take screenshots
+        run: bash tests/linux/smoke.sh linux/dist/linux-unpacked/navigatueur captures
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-captures
+          path: captures
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            linux/dist/*.AppImage
+            linux/dist/*.deb
+            linux/dist/latest-linux.yml
+          retention-days: 14

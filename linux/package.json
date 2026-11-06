@@ -1,0 +1,93 @@
+{
+  "name": "navigatueur",
+  "productName": "Navigatueur",
+  "version": "0.0.0",
+  "description": "Navigatueur pour Linux",
+  "main": "src/main/main.js",
+  "private": true,
+  "author": {
+    "name": "Navigatueur",
+    "email": "navigatueur@users.noreply.github.com"
+  },
+  "homepage": "https://github.com/jubifox/navigatueur",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/core.test.js",
+    "dist": "node scripts/build.js"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.0"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "2.20.3",
+    "electron-updater": "6.8.11"
+  },
+  "build": {
+    "appId": "com.navigatueur.linux",
+    "productName": "Navigatueur",
+    "executableName": "navigatueur",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": "../src/Navigatueur.App/Resources/Pages",
+        "to": "Pages"
+      },
+      {
+        "from": "../src/Navigatueur.App/Resources/Warning",
+        "to": "Warning"
+      },
+      {
+        "from": "../src/Navigatueur.App/Resources/Phishing",
+        "to": "phishing"
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "artifactName": "Navigatueur-Linux-${version}-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jubifox",
+        "repo": "navigatueur"
+      }
+    ],
+    "linux": {
+      "icon": "resources/icon-512.png",
+      "category": "Network;WebBrowser",
+      "synopsis": "Navigateur web immersif",
+      "description": "Navigatueur pour Linux : interface immersive, onglets et groupes, blocage des publicités.",
+      "mimeTypes": [
+        "text/html",
+        "application/xhtml+xml",
+        "x-scheme-handler/http",
+        "x-scheme-handler/https"
+      ],
+      "desktop": {
+        "entry": {
+          "Name": "Navigatueur",
+          "GenericName": "Navigateur web",
+          "Comment": "Navigateur web immersif",
+          "StartupWMClass": "navigatueur",
+          "Keywords": "navigateur;web;internet;"
+        }
+      }
+    },
+    "appImage": {
+      "artifactName": "Navigatueur-Linux-${version}-x86_64.AppImage"
+    },
+    "deb": {
+      "artifactName": "Navigatueur-Linux-${version}-amd64.deb"
+    }
+  }
+}
