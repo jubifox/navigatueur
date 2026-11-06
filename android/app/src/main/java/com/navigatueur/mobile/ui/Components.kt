@@ -226,13 +226,14 @@ val ListPadding = PaddingValues(bottom = 24.dp)
  */
 @Composable
 fun ScreenBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    if (Nv.look.wallpaperEverywhere) {
-        WallpaperBox(modifier) {
-            Box(Modifier.fillMaxSize().background(Nv.colors.window.copy(alpha = 0.55f)))
-            content()
+    Box(modifier.background(Nv.colors.window)) {
+        if (Nv.look.wallpaperEverywhere) {
+            WallpaperBox(Modifier.matchParentSize())
+            Box(Modifier.matchParentSize().background(Nv.colors.window.copy(alpha = 0.55f)))
         }
-    } else {
-        Box(modifier.background(Nv.colors.window), content = content)
+        // Always at the same place in the tree: switching the wallpaper on or
+        // off keeps the screen's state (its scroll position, what was typed).
+        content()
     }
 }
 

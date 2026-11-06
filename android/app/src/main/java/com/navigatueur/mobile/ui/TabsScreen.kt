@@ -1,17 +1,11 @@
 package com.navigatueur.mobile.ui
 
-import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,19 +45,21 @@ import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -75,10 +71,8 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -92,8 +86,6 @@ import com.navigatueur.mobile.core.UrlHelper
 import com.navigatueur.mobile.ui.theme.Nv
 import com.navigatueur.mobile.ui.theme.WordmarkStyle
 import com.navigatueur.mobile.ui.theme.parseHexColor
-import kotlin.math.abs
-import kotlin.math.sign
 
 /**
  * Every open tab as a card with a picture of its page (the Windows app's
@@ -284,34 +276,27 @@ private fun LazyGridScope.tabCards(tabs: List<BrowserTab>, controller: TabsContr
     }
 }
 
-/** Swiping sideways past ~40 % of the width (or flinging) closes; otherwise it springs back. */
+/** Swiping a tab sideways past ~40 % of its width closes it ("Annuler" brings it back). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeToClose(key: String, onClose: () -> Unit, content: @Composable () -> Unit) {
-    var offset by remember(key) { mutableFloatStateOf(0f) }
-    var width by remember { mutableIntStateOf(1) }
     val haptics = LocalHapticFeedback.current
-    Box(
-        Modifier
-            .onSizeChanged { width = it.width.coerceAtLeast(1) }
-            .graphicsLayer {
-                translationX = offset
-                alpha = 1f - (abs(offset) / width).coerceIn(0f, 1f) * 0.85f
+    val dismiss = rememberSwipeToDismissBoxState(positionalThreshold = { width -> width * 0.4f })
+    LaunchedEffect(key, dismiss.currentValue) {
+        if (dismiss.currentValue != SwipeToDismissBoxValue.Settled) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClose()
+        }
+    }
+    SwipeToDismissBox(
+        state = dismiss,
+        backgroundContent = {
+            // What's under the card while it slides away: a close sign on the side it leaves from.
+            val alignment = if (dismiss.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+            Box(Modifier.fillMaxSize().padding(horizontal = 24.dp), contentAlignment = alignment) {
+                Icon(Icons.Rounded.Close, null, tint = Nv.colors.textTertiary)
             }
-            .draggable(
-                orientation = Orientation.Horizontal,
-                state = rememberDraggableState { delta -> offset += delta },
-                onDragStopped = { velocity ->
-                    val far = abs(offset) > width * 0.4f || (abs(velocity) > 2000f && abs(offset) > width * 0.12f)
-                    if (far) {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        val direction = if (offset != 0f) sign(offset) else sign(velocity)
-                        animate(offset, direction * width * 1.1f, animationSpec = tween(140)) { value, _ -> offset = value }
-                        onClose()
-                    } else {
-                        animate(offset, 0f, animationSpec = spring()) { value, _ -> offset = value }
-                    }
-                },
-            )
+        },
     ) { content() }
 }
 

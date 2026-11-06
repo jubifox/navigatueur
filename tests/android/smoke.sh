@@ -68,7 +68,7 @@ tap_ui() {
 # Same, scrolling the screen up (a few times at most) until the element shows.
 tap_ui_scrolling() {
   local xy y
-  for _ in 1 2 3 4 5 6; do
+  for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
     ui_dump
     xy=$(find_node "$1")
     y=${xy#* }
@@ -77,7 +77,7 @@ tap_ui_scrolling() {
       adb shell input tap $xy
       return 0
     fi
-    adb shell input swipe 540 1700 540 1000 400
+    adb shell input swipe 540 1800 540 900 500
     sleep 1
   done
   echo "  ÉCHEC : élément « $1 » introuvable"
@@ -100,6 +100,11 @@ dismiss_system_dialogs() {
 
 shot() {
   dismiss_system_dialogs
+  quick_shot "$1"
+}
+
+# A screenshot right now (during a gesture or a short-lived message).
+quick_shot() {
   step=$((step + 1))
   local file
   file=$(printf "%s/%02d-%s.png" "$OUT" "$step" "$1")
@@ -144,9 +149,13 @@ shot page-wikipedia
 alive "chargement d'une page"
 
 echo "== Tirer pour actualiser"
-adb shell input swipe 540 600 540 1500 700
-sleep 0.5
-shot tirer-pour-actualiser
+dismiss_system_dialogs
+# A slow pull, pictured halfway (the indicator), then right after release (reloading).
+adb shell input swipe 540 600 540 1500 2500 &
+sleep 1.8
+quick_shot tirer-pour-actualiser
+wait
+quick_shot actualisation
 sleep 6
 
 echo "== Défilement : la barre s'efface puis revient"
@@ -229,9 +238,9 @@ sleep 3
 shot onglets-fond
 tap_ui "Afficher en liste"
 sleep 2
-adb shell input swipe 900 340 60 340 250
+adb shell input swipe 850 405 100 405 400
 sleep 1
-shot onglet-ferme-annuler
+quick_shot onglet-ferme-annuler
 tap_ui "Annuler"
 sleep 2
 shot onglet-revenu
