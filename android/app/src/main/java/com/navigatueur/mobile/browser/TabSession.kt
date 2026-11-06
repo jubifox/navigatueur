@@ -103,6 +103,7 @@ class TabSession(
 
     override fun onPageStart(session: GeckoSession, url: String) {
         tab.isLoading = true
+        tab.securityKnown = false
         tab.progress = 5
         tab.isCrashed = false
         if (isActive) controller.emit(UiEvent.ShowToolbar)
@@ -120,6 +121,7 @@ class TabSession(
 
     override fun onSecurityChange(session: GeckoSession, securityInfo: ProgressDelegate.SecurityInformation) {
         tab.isSecure = securityInfo.isSecure
+        tab.securityKnown = true
     }
 
     override fun onSessionStateChange(session: GeckoSession, sessionState: GeckoSession.SessionState) {

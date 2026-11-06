@@ -33,6 +33,9 @@ class BrowserTab(
     var canGoBack by mutableStateOf(false)
     var canGoForward by mutableStateOf(false)
     var isSecure by mutableStateOf(false)
+
+    /** The engine has reported the current page's security (until then, nothing is claimed either way). */
+    var securityKnown by mutableStateOf(false)
     var favicon by mutableStateOf<Bitmap?>(null)
     var themeColor by mutableStateOf<Int?>(null)
     var thumbnail by mutableStateOf<Bitmap?>(null)

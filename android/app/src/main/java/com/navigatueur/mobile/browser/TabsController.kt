@@ -125,6 +125,7 @@ class TabsController(
 
     fun selectTab(tab: BrowserTab) {
         val previous = activeTab
+        if (previous?.id != tab.id) extensions.closePopup()
         if (previous != null && previous.id != tab.id) {
             captureThumbnail(previous)
             previous.session?.setActive(false)

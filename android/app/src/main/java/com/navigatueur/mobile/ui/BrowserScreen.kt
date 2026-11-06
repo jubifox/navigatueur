@@ -253,7 +253,7 @@ private fun AddressPill(tab: BrowserTab, modifier: Modifier, onClick: () -> Unit
         when {
             tab.isHome || text.isEmpty() -> Icon(Icons.Rounded.Search, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
             UrlHelper.isWebUrl(tab.url) && tab.isSecure -> Icon(Icons.Rounded.Lock, "Connexion sécurisée", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
-            UrlHelper.isWebUrl(tab.url) -> Icon(Icons.Rounded.Info, "Connexion non sécurisée", tint = colors.danger, modifier = Modifier.size(17.dp))
+            UrlHelper.isWebUrl(tab.url) && tab.securityKnown -> Icon(Icons.Rounded.Info, "Connexion non sécurisée", tint = colors.danger, modifier = Modifier.size(17.dp))
             else -> FaviconImage(tab.favicon, 16.dp)
         }
         Spacer(Modifier.width(9.dp))

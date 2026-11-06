@@ -105,3 +105,51 @@ jobs:
               --notes-file '${{ steps.version.outputs.notes }}' `
               --target '${{ github.sha }}' @flags
           }
+
+  # The Android APKs (one per processor type), attached to the same release
+  # as the Windows installer. Signed with the key from the repository
+  # secrets NAVIGATUEUR_KEYSTORE_B64 / NAVIGATUEUR_KEYSTORE_PASSWORD /
+  # NAVIGATUEUR_KEY_ALIAS / NAVIGATUEUR_KEY_PASSWORD (see
+  # packaging/android/set-signing-secrets.ps1); without them, with a
+  # throwaway key (installable, but the next version won't install over it).
+  android:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Android platform the engine needs
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2" "build-tools;37.0.0" > /dev/null
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.NAVIGATUEUR_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "NAVIGATUEUR_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing key in the repository secrets: the APKs are signed with a throwaway key."
+          fi
+
+      - name: Build the release APKs
+        working-directory: android
+        env:
+          NAVIGATUEUR_KEYSTORE_PASSWORD: ${{ secrets.NAVIGATUEUR_KEYSTORE_PASSWORD }}
+          NAVIGATUEUR_KEY_ALIAS: ${{ secrets.NAVIGATUEUR_KEY_ALIAS }}
+          NAVIGATUEUR_KEY_PASSWORD: ${{ secrets.NAVIGATUEUR_KEY_PASSWORD }}
+        run: ./gradlew --no-daemon :app:assembleRelease
+
+      - name: Attach them to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ls -la android/app/build/outputs/apk/release/
+          gh release upload '${{ github.ref_name }}' android/app/build/outputs/apk/release/Navigatueur-Android-*.apk --clobber
