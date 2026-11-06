@@ -191,6 +191,11 @@ class TabSession(
         return GeckoResult.fromValue(true)
     }
 
+    override fun onHistoryStateChange(session: GeckoSession, historyList: HistoryDelegate.HistoryList) {
+        tab.history = historyList.map { TabHistoryItem(it.uri, it.title) }
+        tab.historyIndex = historyList.currentIndex
+    }
+
     override fun getVisited(session: GeckoSession, urls: Array<out String>): GeckoResult<BooleanArray>? {
         val visited = visitedUrls(stores.history.value)
         return GeckoResult.fromValue(BooleanArray(urls.size) { urls[it] in visited })

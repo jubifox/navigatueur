@@ -176,6 +176,12 @@ class TabsController(
         persist()
     }
 
+    /** A tab the user closed: it can come back with "Annuler" on the message that follows. */
+    fun closeTabByUser(tab: BrowserTab) {
+        closeTab(tab, remember = true)
+        emit(UiEvent.Undo(if (tab.isPrivate) "Onglet privé fermé" else "Onglet fermé") { reopenClosedTab() })
+    }
+
     fun closeAll(private: Boolean) {
         tabs.filter { it.isPrivate == private }.forEach { closeTab(it, remember = !private) }
     }
@@ -333,6 +339,12 @@ class TabsController(
     }
 
     fun goForward(tab: BrowserTab) = tab.session?.goForward()
+
+    /** A page of the tab's back/forward list (long press on Retour). */
+    fun goToHistory(tab: BrowserTab, index: Int) {
+        if (index == tab.historyIndex || index !in tab.history.indices) return
+        tab.session?.gotoHistoryIndex(index)
+    }
 
     fun reload(tab: BrowserTab) {
         if (tab.isCrashed || tab.session == null) {

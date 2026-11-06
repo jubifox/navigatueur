@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -45,6 +46,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.navigatueur.mobile.ui.theme.Nv
+import com.navigatueur.mobile.ui.theme.WallpaperBox
 
 @Composable
 fun FaviconImage(bitmap: Bitmap?, size: Dp = 18.dp, modifier: Modifier = Modifier, tint: Color = Nv.colors.textTertiary) {
@@ -92,19 +94,22 @@ fun ScreenHeader(title: String, onBack: () -> Unit, actions: @Composable RowScop
 @Composable
 fun Section(title: String? = null, lead: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        // Over the wallpaper, titles take its text color.
+        val onWallpaper = Nv.look.wallpaperEverywhere
         if (title != null) {
-            Text(title, color = Nv.colors.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+            Text(title, color = if (onWallpaper) Nv.onWallpaper else Nv.colors.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, modifier = Modifier.padding(start = 4.dp, top = 8.dp))
         }
         if (lead != null) {
-            Text(lead, color = Nv.colors.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+            Text(lead, color = if (onWallpaper) Nv.onWallpaper.copy(alpha = 0.78f) else Nv.colors.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
         }
         Spacer(Modifier.height(8.dp))
+        val shape = Nv.shape(14.dp)
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(shape)
                 .background(Nv.colors.panel)
-                .border(1.dp, Nv.colors.panelBorder, RoundedCornerShape(14.dp)),
+                .border(1.dp, Nv.colors.panelBorder, shape),
             content = content,
         )
     }
@@ -171,7 +176,7 @@ fun RowDivider() {
 fun Segmented(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier
-            .clip(RoundedCornerShape(10.dp))
+            .clip(Nv.shape(10.dp))
             .background(Nv.colors.surface)
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -180,7 +185,7 @@ fun Segmented(options: List<Pair<String, String>>, selected: String, onSelect: (
             val active = value == selected
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(Nv.shape(8.dp))
                     .background(if (active) Nv.colors.accent else Color.Transparent)
                     .clickable(role = Role.RadioButton) { onSelect(value) }
                     .padding(horizontal = 12.dp, vertical = 7.dp),
@@ -213,3 +218,28 @@ fun EmptyState(icon: ImageVector, title: String, text: String) {
 }
 
 val ListPadding = PaddingValues(bottom = 24.dp)
+
+/**
+ * A full screen's background: the window color, or — when Personnaliser →
+ * "Fond dans toute l'application" is on — the wallpaper under a veil of the
+ * window color, so text stays readable on any picture or gradient.
+ */
+@Composable
+fun ScreenBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    if (Nv.look.wallpaperEverywhere) {
+        WallpaperBox(modifier) {
+            Box(Modifier.fillMaxSize().background(Nv.colors.window.copy(alpha = 0.55f)))
+            content()
+        }
+    } else {
+        Box(modifier.background(Nv.colors.window), content = content)
+    }
+}
+
+/** A full screen laid out as a column, on [ScreenBackground]. */
+@Composable
+fun ScreenColumn(content: @Composable ColumnScope.() -> Unit) {
+    ScreenBackground(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize(), content = content)
+    }
+}

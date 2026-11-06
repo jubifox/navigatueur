@@ -15,6 +15,7 @@ import android.graphics.drawable.Icon
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import android.util.Rational
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -86,11 +87,23 @@ class MainActivity : ComponentActivity(), ActivityActions {
         if (uri == null) return@registerForActivityResult
         runCatching {
             val dir = app.stores.backgroundsDir.apply { mkdirs() }
-            dir.listFiles()?.forEach { it.delete() }
-            val target = File(dir, "newtab-${System.currentTimeMillis()}.jpg")
+            val target = File(dir, "wallpaper-${System.currentTimeMillis()}.jpg")
             contentResolver.openInputStream(uri)?.use { input -> target.outputStream().use { input.copyTo(it) } }
-            app.stores.settings.update { it.copy(newTabBackgroundPath = target.path) }
-        }
+            // Only the new picture is kept.
+            dir.listFiles()?.filter { it != target }?.forEach { it.delete() }
+            app.stores.settings.update { s ->
+                s.copy(appearance = s.appearance.copy(themeId = null, wallpaper = s.appearance.wallpaper.copy(kind = "Image", imagePath = target.path)))
+            }
+        }.onFailure { app.tabs.emit(UiEvent.Message("Impossible d'utiliser cette image")) }
+    }
+
+    private var pendingVoice: ((String) -> Unit)? = null
+
+    private val voiceRecognizer = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val callback = pendingVoice
+        pendingVoice = null
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (result.resultCode == RESULT_OK && !spoken.isNullOrBlank()) callback?.invoke(spoken)
     }
 
     private val pipReceiver = object : BroadcastReceiver() {
@@ -319,6 +332,21 @@ class MainActivity : ComponentActivity(), ActivityActions {
 
     override fun moveToBackground() {
         moveTaskToBack(true)
+    }
+
+    private fun voiceIntent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+        .putExtra(RecognizerIntent.EXTRA_PROMPT, "Dites ce que vous cherchez")
+
+    override val canVoiceSearch: Boolean
+        get() = voiceIntent().resolveActivity(packageManager) != null
+
+    override fun voiceSearch(onResult: (String) -> Unit) {
+        pendingVoice = onResult
+        runCatching { voiceRecognizer.launch(voiceIntent()) }.onFailure {
+            pendingVoice = null
+            app.tabs.emit(UiEvent.Message("La recherche vocale n'est pas disponible"))
+        }
     }
 
     override fun onDestroy() {

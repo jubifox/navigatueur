@@ -88,7 +88,12 @@ class Stores(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val dir = File(context.filesDir, "navigatueur")
 
-    val settings = JsonStore(File(dir, "settings.json"), AppSettings.serializer(), { AppSettings() }, scope)
+    val settings = JsonStore(File(dir, "settings.json"), AppSettings.serializer(), { AppSettings() }, scope).apply {
+        // A file from an older version is brought up to date once.
+        val current = value
+        val migrated = current.migrated()
+        if (migrated != current) set(migrated)
+    }
     val history = JsonStore(File(dir, "history.json"), ListSerializer(HistoryEntry.serializer()), { emptyList() }, scope, 1500)
     val bookmarks = JsonStore(File(dir, "bookmarks.json"), ListSerializer(Bookmark.serializer()), { emptyList() }, scope)
     val session = JsonStore(File(dir, "session.json"), SavedSession.serializer(), { SavedSession() }, scope, 1000)
@@ -148,6 +153,14 @@ class Stores(context: Context) {
             }
         }
         return added
+    }
+
+    /** Renames a favorite or corrects its address. */
+    fun updateBookmark(oldUrl: String, title: String, url: String) {
+        val key = UrlHelper.normalizeKey(oldUrl)
+        bookmarks.update { list ->
+            list.map { if (UrlHelper.normalizeKey(it.url) == key) it.copy(title = title.trim().ifBlank { it.title }, url = url.trim().ifBlank { it.url }) else it }
+        }
     }
 
     fun suggestionSources(): Sequence<SuggestionSource> =

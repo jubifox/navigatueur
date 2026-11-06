@@ -1,5 +1,14 @@
 package com.navigatueur.mobile.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import com.navigatueur.mobile.data.Bookmark
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -76,7 +85,7 @@ private val timeFormat = SimpleDateFormat("HH:mm", Locale.FRENCH)
 private fun SearchField(query: String, placeholder: String, onChange: (String) -> Unit) {
     val colors = Nv.colors
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).height(44.dp).clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(horizontal = 12.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).height(44.dp).clip(Nv.shape(12.dp)).background(colors.surface).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Icons.Rounded.Search, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
@@ -91,15 +100,16 @@ private fun SearchField(query: String, placeholder: String, onChange: (String) -
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun PageRow(title: String, url: String, meta: String?, onClick: () -> Unit, onLongClick: (() -> Unit)? = null, trailing: @Composable (() -> Unit)? = null) {
     val colors = Nv.colors
     val controller = NavigatueurApp.instance.tabs
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(start = 18.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
+        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick).padding(start = 18.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(34.dp).clip(Nv.shape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
             FaviconImage(controller.favicons.cached(url), 18.dp)
         }
         Spacer(Modifier.width(14.dp))
@@ -135,7 +145,7 @@ fun HistoryScreen(app: NavigatueurApp, state: AppUiState) {
         history.asReversed().filter { q.isEmpty() || it.title.contains(q, true) || it.url.contains(q, true) }.take(1500)
     }
 
-    Column(Modifier.fillMaxSize().background(colors.window)) {
+    ScreenColumn {
         ScreenHeader("Historique", onBack = { state.screen = Screen.Browser }) {
             if (history.isNotEmpty()) TextButton(onClick = { confirmClear = true }) { Text("Effacer…", color = colors.danger) }
         }
@@ -175,37 +185,75 @@ fun HistoryScreen(app: NavigatueurApp, state: AppUiState) {
 }
 
 @Composable
-fun BookmarksScreen(app: NavigatueurApp, state: AppUiState) {
+fun BookmarksScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActions) {
     val colors = Nv.colors
+    val context = LocalContext.current
     val bookmarks by app.stores.bookmarks.flow.collectAsState()
     var query by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf<Bookmark?>(null) }
     val entries = remember(bookmarks, query) {
         val q = query.trim()
         bookmarks.asReversed().filter { q.isEmpty() || it.title.contains(q, true) || it.url.contains(q, true) }
     }
 
-    Column(Modifier.fillMaxSize().background(colors.window)) {
+    ScreenColumn {
         ScreenHeader("Favoris", onBack = { state.screen = Screen.Browser })
         if (bookmarks.isNotEmpty()) SearchField(query, "Rechercher dans les favoris") { query = it }
         if (entries.isEmpty()) {
-            EmptyState(Icons.Rounded.Bookmarks, "Aucun favori", "Ajoutez la page ouverte depuis le menu ⋯, bouton « Ajouter ». Les favoris apparaissent aussi sur la page d'accueil.")
+            EmptyState(Icons.Rounded.Bookmarks, "Aucun favori", "Ajoutez la page ouverte avec l'étoile du menu ⋯. Les favoris apparaissent aussi sur la page d'accueil.")
         } else {
             LazyColumn(Modifier.fillMaxSize().navigationBarsPadding(), contentPadding = ListPadding) {
                 items(entries, key = { it.url }) { bookmark ->
                     var menu by remember { mutableStateOf(false) }
-                    PageRow(bookmark.title, bookmark.url, null, onClick = { openInCurrentTab(app, state, bookmark.url) }) {
+                    PageRow(bookmark.title, bookmark.url, null, onClick = { openInCurrentTab(app, state, bookmark.url) }, onLongClick = { menu = true }) {
                         Box {
                             IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Options", tint = colors.textTertiary) }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                DropdownMenuItem(text = { Text("Ouvrir dans un nouvel onglet") }, onClick = { menu = false; app.tabs.newTab(bookmark.url, private = false, select = false) })
+                                DropdownMenuItem(text = { Text("Ouvrir dans un nouvel onglet") }, onClick = { menu = false; app.tabs.newTab(bookmark.url, private = false, select = false); app.tabs.emit(com.navigatueur.mobile.browser.UiEvent.Message("Ouvert en arrière-plan")) })
                                 DropdownMenuItem(text = { Text("Ouvrir dans un onglet privé") }, onClick = { menu = false; app.tabs.newTab(bookmark.url, private = true); state.screen = Screen.Browser })
-                                DropdownMenuItem(text = { Text("Supprimer") }, onClick = { menu = false; app.stores.toggleBookmark(bookmark.url, bookmark.title) })
+                                DropdownMenuItem(text = { Text("Modifier") }, onClick = { menu = false; editing = bookmark })
+                                DropdownMenuItem(text = { Text("Copier le lien") }, onClick = {
+                                    menu = false
+                                    (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("URL", bookmark.url))
+                                    app.tabs.emit(com.navigatueur.mobile.browser.UiEvent.Message("Lien copié"))
+                                })
+                                DropdownMenuItem(text = { Text("Partager") }, onClick = { menu = false; actions.share(bookmark.title, null, bookmark.url) })
+                                DropdownMenuItem(text = { Text("Supprimer") }, onClick = {
+                                    menu = false
+                                    app.stores.toggleBookmark(bookmark.url, bookmark.title)
+                                    app.tabs.emit(com.navigatueur.mobile.browser.UiEvent.Undo("Favori supprimé") { app.stores.toggleBookmark(bookmark.url, bookmark.title) })
+                                })
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    editing?.let { bookmark ->
+        var title by remember(bookmark) { mutableStateOf(bookmark.title) }
+        var url by remember(bookmark) { mutableStateOf(bookmark.url) }
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = { Text("Modifier le favori") },
+            text = {
+                Column {
+                    OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true, label = { Text("Nom") })
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(value = url, onValueChange = { url = it }, singleLine = true, label = { Text("Adresse") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val normalized = if (url.isBlank()) bookmark.url else UrlHelper.normalize(url)
+                    app.stores.updateBookmark(bookmark.url, title, normalized)
+                    editing = null
+                }) { Text("Enregistrer") }
+            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text("Annuler") } },
+        )
     }
 }
 
@@ -214,7 +262,7 @@ fun DownloadsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityAct
     val colors = Nv.colors
     val downloads by app.stores.downloads.flow.collectAsState()
 
-    Column(Modifier.fillMaxSize().background(colors.window)) {
+    ScreenColumn {
         ScreenHeader("Téléchargements", onBack = { state.screen = Screen.Browser }) {
             if (downloads.any { it.state != "Running" }) TextButton(onClick = { app.downloads.clearFinished() }) { Text("Vider la liste", color = colors.textSecondary) }
         }
@@ -239,7 +287,7 @@ private fun DownloadRow(app: NavigatueurApp, record: DownloadRecord, actions: Ac
             .padding(start = 18.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(Nv.shape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.InsertDriveFile, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(14.dp))
