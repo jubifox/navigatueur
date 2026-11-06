@@ -157,6 +157,7 @@ quick_shot tirer-pour-actualiser
 wait
 quick_shot actualisation
 sleep 6
+adb logcat -d -s NvPull:D > "$OUT/tirer-pour-actualiser.txt" 2> /dev/null
 
 echo "== Défilement : la barre s'efface puis revient"
 adb shell input swipe 540 1700 540 700 300
@@ -183,6 +184,13 @@ adb shell input keyevent 66
 sleep 10
 shot example-meme-onglet
 alive "example.com"
+# The same pull on a page without scripts of its own.
+adb shell input swipe 540 700 540 1600 2500 &
+sleep 1.8
+quick_shot tirer-pour-actualiser-example
+wait
+sleep 4
+adb logcat -d -s NvPull:D > "$OUT/tirer-pour-actualiser.txt" 2> /dev/null
 
 echo "== Menu en grille, puis appui long sur Retour : les pages de l'onglet"
 tap_ui "Menu du navigateur"

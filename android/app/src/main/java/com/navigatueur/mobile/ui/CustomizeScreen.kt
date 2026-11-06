@@ -252,7 +252,7 @@ fun CustomizeScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityAct
                         ToolbarButtonIds.SHARE to "Partager",
                         ToolbarButtonIds.BOOKMARK to "Favori",
                     )
-                    choices.chunked(3).forEach { row ->
+                    choices.chunked(2).forEach { row ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             row.forEach { (id, label) ->
                                 val on = id in look.toolbarButtons
@@ -571,7 +571,10 @@ private fun GradientEditor(
             } else {
                 RoundAction(Icons.Rounded.Remove, "Retirer la dernière couleur") { onChange(spec.copy(colors = spec.colors.dropLast(1))) }
             }
-            Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Forme", color = colors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Segmented(listOf("Linear" to "Linéaire", "Radial" to "Radial"), spec.style, { v -> onChange(spec.copy(style = v)) })
         }
     }

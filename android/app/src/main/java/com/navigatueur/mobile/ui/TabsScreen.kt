@@ -291,10 +291,14 @@ private fun SwipeToClose(key: String, onClose: () -> Unit, content: @Composable 
     SwipeToDismissBox(
         state = dismiss,
         backgroundContent = {
-            // What's under the card while it slides away: a close sign on the side it leaves from.
-            val alignment = if (dismiss.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-            Box(Modifier.fillMaxSize().padding(horizontal = 24.dp), contentAlignment = alignment) {
-                Icon(Icons.Rounded.Close, null, tint = Nv.colors.textTertiary)
+            // While the card slides away, a close sign shows on the side it leaves from
+            // (only then: cards can be see-through).
+            val direction = dismiss.dismissDirection
+            if (direction != SwipeToDismissBoxValue.Settled) {
+                val alignment = if (direction == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                Box(Modifier.fillMaxSize().padding(horizontal = 24.dp), contentAlignment = alignment) {
+                    Icon(Icons.Rounded.Close, null, tint = Nv.colors.textTertiary)
+                }
             }
         },
     ) { content() }

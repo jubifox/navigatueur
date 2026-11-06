@@ -5,6 +5,8 @@ import android.content.Context
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.ViewConfiguration
+import android.util.Log
+import com.navigatueur.mobile.BuildConfig
 import org.mozilla.geckoview.GeckoView
 import org.mozilla.geckoview.PanZoomController
 import kotlin.math.abs
@@ -40,6 +42,7 @@ class NvGeckoView(context: Context) : GeckoView(context) {
                 armed = false
                 startX = event.x
                 startY = event.y
+                if (BuildConfig.DEBUG) Log.d(TAG, "down pullEnabled=$pullEnabled session=${session != null}")
                 if (pullEnabled && session != null) {
                     requestFocus()
                     // Asking how the engine handles this touch also hands the touch to it.
@@ -48,7 +51,13 @@ class NvGeckoView(context: Context) : GeckoView(context) {
                             detail.handledResult() != PanZoomController.INPUT_RESULT_HANDLED_CONTENT &&
                             (detail.scrollableDirections() and PanZoomController.SCROLLABLE_FLAG_TOP) == 0 &&
                             (detail.overscrollDirections() and PanZoomController.OVERSCROLL_FLAG_VERTICAL) != 0
-                    }, { pageAtTop = false })
+                        if (BuildConfig.DEBUG) {
+                            Log.d(TAG, "detail handled=${detail?.handledResult()} scrollable=${detail?.scrollableDirections()} overscroll=${detail?.overscrollDirections()} atTop=$pageAtTop")
+                        }
+                    }, { error ->
+                        pageAtTop = false
+                        if (BuildConfig.DEBUG) Log.d(TAG, "detail failed", error)
+                    })
                     return true
                 }
             }
@@ -56,7 +65,10 @@ class NvGeckoView(context: Context) : GeckoView(context) {
             MotionEvent.ACTION_MOVE -> if (pageAtTop && pullEnabled) {
                 val dy = event.y - startY
                 val dx = event.x - startX
-                if (!pulling && dy > touchSlop && dy > abs(dx) * 1.5f) pulling = true
+                if (!pulling && dy > touchSlop && dy > abs(dx) * 1.5f) {
+                    pulling = true
+                    if (BuildConfig.DEBUG) Log.d(TAG, "pulling")
+                }
                 if (pulling) {
                     val distance = ((dy - touchSlop) * 0.5f).coerceAtLeast(0f)
                     val nowArmed = distance >= pullThreshold
@@ -72,6 +84,7 @@ class NvGeckoView(context: Context) : GeckoView(context) {
     }
 
     private fun endPull(reload: Boolean) {
+        if (BuildConfig.DEBUG && pulling) Log.d(TAG, "end reload=$reload")
         if (pulling) {
             pulling = false
             onPull?.invoke(0f)
@@ -79,5 +92,9 @@ class NvGeckoView(context: Context) : GeckoView(context) {
         }
         pageAtTop = false
         armed = false
+    }
+
+    private companion object {
+        const val TAG = "NvPull"
     }
 }
