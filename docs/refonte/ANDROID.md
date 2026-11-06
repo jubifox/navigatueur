@@ -86,7 +86,7 @@ Ce que les captures montrent, dans l'ordre du scénario :
 | Étape | Vérifié |
 |---|---|
 | Page d'accueil au premier lancement | Lueur bleue d'origine, barre d'outils en bas |
-| Tirer pour actualiser (Wikipédia, puis example.com) | Correction en cours de vérification (voir plus bas) |
+| Tirer pour actualiser (Wikipédia, puis example.com) | Anneau qui se remplit pendant le geste, rechargement au relâchement ; ignoré quand la page n'est pas en haut |
 | Défilement | La barre s'efface en lisant et revient en remontant |
 | Saisie d'adresse | Suggestions de Bing (« meteo france », « meteociel »…), choix ponctuel du moteur, touches www. / .com / .fr / .org / / / https:// au-dessus du clavier |
 | Menu ⋯ | Page et étoile, Retour / Avancer / Recharger / Accueil, extensions, grille de 16 tuiles |
