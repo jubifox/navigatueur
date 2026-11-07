@@ -57,6 +57,7 @@ object Engine {
 
         runtime = GeckoRuntime.create(context.applicationContext, runtimeSettings)
         applyPreferences()
+        applyAccessibility(settings)
     }
 
     /**
@@ -91,6 +92,22 @@ object Engine {
         runtimeSettings.contentBlocking
             .setAntiTracking(antiTracking(settings))
             .setEnhancedTrackingProtectionLevel(if (settings.trackingProtection) ContentBlocking.EtpLevel.DEFAULT else ContentBlocking.EtpLevel.NONE)
+        applyAccessibility(settings)
+    }
+
+    /** Text size of pages (0: Android's font size) and pinch zoom on every site. */
+    private fun applyAccessibility(settings: AppSettings) {
+        runCatching {
+            val runtimeSettings = runtime.settings
+            if (settings.textScale <= 0) {
+                runtimeSettings.setAutomaticFontSizeAdjustment(true)
+            } else {
+                // A fixed factor is only accepted once the automatic one is off.
+                runtimeSettings.setAutomaticFontSizeAdjustment(false)
+                runtimeSettings.setFontSizeFactor(settings.textScale.coerceIn(50, 300) / 100f)
+            }
+        }.onFailure { Log.w(TAG, "Text size not applied", it) }
+        setPref("browser.ui.zoom.force-user-scalable", settings.forceZoom)
     }
 
     private fun antiTracking(settings: AppSettings): Int =

@@ -22,7 +22,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.navigatueur.mobile.BuildConfig
 import com.navigatueur.mobile.NavigatueurApp
 import com.navigatueur.mobile.core.SearchEngines
+import com.navigatueur.mobile.core.ThemePresets
 import com.navigatueur.mobile.core.UrlHelper
 import com.navigatueur.mobile.data.AppSettings
 import com.navigatueur.mobile.engine.Engine
@@ -71,50 +74,23 @@ fun SettingsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActi
         Engine.apply(stores.settings.value)
     }
 
-    Column(Modifier.fillMaxSize().background(colors.window)) {
+    ScreenColumn {
         ScreenHeader("Paramètres", onBack = { state.screen = Screen.Browser })
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp)) {
 
-            Section("Apparence", "Couleurs et fond.") {
+            Section("Apparence", "Couleurs, fond d'écran, barre d'outils, formes, page d'accueil.") {
+                SettingRow(
+                    "Personnaliser",
+                    ThemePresets.byId(settings.appearance.themeId)?.let { "Thème « ${it.name} »" } ?: "Apparence sur mesure",
+                    icon = Icons.Rounded.Palette,
+                    onClick = { state.openCustomize(Screen.Settings) },
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = colors.textTertiary)
+                }
+                RowDivider()
                 SettingRow("Thème") {
                     Segmented(listOf("Dark" to "Sombre", "Light" to "Clair", "System" to "Auto"), settings.themeMode, { mode -> update { it.copy(themeMode = mode) } })
                 }
-                RowDivider()
-                Column(Modifier.padding(horizontal = 16.dp, vertical = 13.dp)) {
-                    Text("Couleur d'accent", color = colors.text, fontSize = 15.sp)
-                    Spacer(Modifier.height(10.dp))
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AccentChoices.forEach { (hex, name) ->
-                            val selected = hex.equals(settings.accentColorHex, ignoreCase = true)
-                            Box(
-                                Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(parseHexColor(hex))
-                                    .border(if (selected) 3.dp else 0.dp, colors.text, CircleShape)
-                                    .clickable { update { it.copy(accentColorHex = hex) } },
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                if (selected) Icon(Icons.Rounded.Check, name, tint = colors.accentForeground, modifier = Modifier.size(18.dp))
-                            }
-                        }
-                    }
-                }
-                RowDivider()
-                SettingRow(
-                    "Fond de la page d'accueil",
-                    if (settings.newTabBackgroundPath != null) "Une image de votre choix" else "Aucune image",
-                    onClick = { actions.pickBackgroundImage() },
-                ) {
-                    if (settings.newTabBackgroundPath != null) {
-                        TextButton(onClick = {
-                            settings.newTabBackgroundPath?.let { File(it).delete() }
-                            update { it.copy(newTabBackgroundPath = null) }
-                        }) { Text("Retirer", color = colors.textSecondary) }
-                    }
-                }
-                RowDivider()
-                SwitchRow("Favoris sur la page d'accueil", checked = settings.showFavoritesOnHome) { v -> update { it.copy(showFavoritesOnHome = v) } }
                 RowDivider()
                 SwitchRow(
                     "Mode sombre pour tous les sites",
@@ -123,13 +99,20 @@ fun SettingsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActi
                 ) { app.extensions.setForceDark(it) }
             }
 
-            Section("Interface", "Où est la barre d'outils, et comment elle se comporte.") {
-                SettingRow("Barre d'outils") {
-                    Segmented(listOf("Bottom" to "En bas", "Top" to "En haut"), settings.toolbarPosition, { pos -> update { it.copy(toolbarPosition = pos) } })
-                }
-                RowDivider()
+            Section("Interface", "Gestes et comportement de la barre d'outils.") {
                 SwitchRow("Masquer la barre en lisant", "Elle s'efface quand on fait défiler la page vers le bas et revient vers le haut.", checked = settings.hideToolbarOnScroll) { v ->
                     update { it.copy(hideToolbarOnScroll = v) }
+                }
+                RowDivider()
+                SwitchRow(
+                    "Gestes sur la barre d'outils",
+                    if (settings.toolbarPosition == "Top") "Glisser vers la gauche ou la droite : onglet voisin. Vers le bas : tous les onglets."
+                    else "Glisser vers la gauche ou la droite : onglet voisin. Vers le haut : tous les onglets.",
+                    checked = settings.toolbarGestures,
+                ) { v -> update { it.copy(toolbarGestures = v) } }
+                RowDivider()
+                SwitchRow("Tirer pour actualiser", "En haut d'une page, tirez vers le bas pour la recharger.", checked = settings.pullToRefresh) { v ->
+                    update { it.copy(pullToRefresh = v) }
                 }
             }
 
@@ -139,6 +122,12 @@ fun SettingsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActi
                 }
                 RowDivider()
                 SettingRow("Page d'accueil", settings.homePageUrl.ifBlank { "Page Navigatueur" }, onClick = { homeDialog = true })
+                RowDivider()
+                SwitchRow(
+                    "Suggestions de recherche",
+                    "Le moteur choisi propose des recherches pendant la saisie (jamais dans les onglets privés).",
+                    checked = settings.searchSuggestions,
+                ) { v -> update { it.copy(searchSuggestions = v) } }
                 RowDivider()
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 13.dp)) {
                     Text("Moteur de recherche", color = colors.text, fontSize = 15.sp)
@@ -201,6 +190,19 @@ fun SettingsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActi
                 RowDivider()
                 ChoiceRow("Mettre en veille les onglets inactifs après", null,
                     listOf(0 to "Jamais", 5 to "5 minutes", 15 to "15 minutes", 30 to "30 minutes", 60 to "1 heure"), settings.suspendMinutes) { v -> update { it.copy(suspendMinutes = v) } }
+            }
+
+            Section("Accessibilité") {
+                ChoiceRow(
+                    "Taille du texte des pages",
+                    "« Système » suit la taille de police d'Android.",
+                    listOf(0 to "Système", 80 to "80 %", 90 to "90 %", 100 to "100 %", 110 to "110 %", 125 to "125 %", 150 to "150 %", 175 to "175 %", 200 to "200 %"),
+                    settings.textScale,
+                ) { v -> update { it.copy(textScale = v) } }
+                RowDivider()
+                SwitchRow("Zoom sur tous les sites", "Permet d'agrandir avec deux doigts, même les sites qui l'interdisent.", checked = settings.forceZoom) { v ->
+                    update { it.copy(forceZoom = v) }
+                }
             }
 
             Section("Extensions") {

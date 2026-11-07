@@ -71,6 +71,9 @@ data class ContextMenuRequest(
 /** One-off things the screen reacts to. */
 sealed class UiEvent {
     data class Message(val text: String) : UiEvent()
+
+    /** A message with an "Annuler" button (a tab just closed…). */
+    class Undo(val text: String, val undo: () -> Unit) : UiEvent()
     data class OpenExternal(val uri: String, val fallbackUrl: String?) : UiEvent()
     data class Share(val title: String?, val text: String?, val url: String?) : UiEvent()
     data class PickFiles(val tabId: String, val prompt: PromptDelegate.FilePrompt, val result: GeckoResult<PromptResponse>) : UiEvent()

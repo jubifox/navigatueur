@@ -102,6 +102,7 @@ class TabSession(
     // ---------------------------------------------------------- progress
 
     override fun onPageStart(session: GeckoSession, url: String) {
+        tab.scrollY = 0
         tab.isLoading = true
         tab.securityKnown = false
         tab.progress = 5
@@ -191,6 +192,11 @@ class TabSession(
         return GeckoResult.fromValue(true)
     }
 
+    override fun onHistoryStateChange(session: GeckoSession, historyList: HistoryDelegate.HistoryList) {
+        tab.history = historyList.map { TabHistoryItem(it.uri, it.title) }
+        tab.historyIndex = historyList.currentIndex
+    }
+
     override fun getVisited(session: GeckoSession, urls: Array<out String>): GeckoResult<BooleanArray>? {
         val visited = visitedUrls(stores.history.value)
         return GeckoResult.fromValue(BooleanArray(urls.size) { urls[it] in visited })
@@ -199,6 +205,7 @@ class TabSession(
     // ------------------------------------------------------------ scroll
 
     override fun onScrollChanged(session: GeckoSession, scrollX: Int, scrollY: Int) {
+        tab.scrollY = scrollY
         if (isActive) controller.toolbar.onPageScrolled(scrollY)
     }
 

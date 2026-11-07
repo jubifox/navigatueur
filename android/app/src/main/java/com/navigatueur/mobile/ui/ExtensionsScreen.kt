@@ -52,7 +52,7 @@ fun ExtensionsScreen(app: NavigatueurApp, state: AppUiState) {
     val manager = app.extensions
     val missing = ExtensionsManager.catalog.filter { entry -> manager.installed.none { it.id == entry.id } }
 
-    Column(Modifier.fillMaxSize().background(colors.window)) {
+    ScreenColumn {
         ScreenHeader("Extensions", onBack = { state.screen = Screen.Browser })
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(bottom = 24.dp)) {
             Text(
@@ -101,7 +101,7 @@ private fun ExtensionRow(app: NavigatueurApp, item: InstalledExtension, state: A
     var menu by remember { mutableStateOf(false) }
     val action = manager.actions[item.id]
     Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(38.dp).clip(Nv.shape(10.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
             val icon = action?.icon
             if (icon != null) Image(icon.asImageBitmap(), null, Modifier.size(24.dp)) else Icon(Icons.Rounded.Extension, null, tint = colors.textSecondary)
         }

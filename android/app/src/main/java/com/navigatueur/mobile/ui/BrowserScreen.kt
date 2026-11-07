@@ -1,15 +1,18 @@
 package com.navigatueur.mobile.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -30,25 +33,37 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.SentimentDissatisfied
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -57,21 +72,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -81,13 +104,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.navigatueur.mobile.browser.BrowserTab
+import com.navigatueur.mobile.browser.NvGeckoView
 import com.navigatueur.mobile.browser.PermissionRequest
 import com.navigatueur.mobile.browser.TabsController
 import com.navigatueur.mobile.core.UrlHelper
+import com.navigatueur.mobile.data.ToolbarButtonIds
 import com.navigatueur.mobile.ui.theme.Nv
-import org.mozilla.geckoview.GeckoSession
-import org.mozilla.geckoview.GeckoView
+import kotlin.math.abs
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
+import org.mozilla.geckoview.GeckoSession
 
 /**
  * The page, and Navigatueur's toolbar over it. Like the Windows app's
@@ -99,6 +127,7 @@ fun BrowserScreen(
     controller: TabsController,
     state: AppUiState,
     inPictureInPicture: Boolean,
+    actions: ActivityActions,
 ) {
     val tab = controller.activeTab ?: return
     val settings by com.navigatueur.mobile.NavigatueurApp.instance.stores.settings.flow.collectAsState()
@@ -109,7 +138,16 @@ fun BrowserScreen(
 
     var toolbarHeightPx by remember { mutableIntStateOf(0) }
     val offsetFraction by animateFloatAsState(if (hidden) 1f else 0f, tween(180), label = "toolbar")
-    val density = LocalDensity.current
+    val pull = remember { PullState() }
+
+    // The spinner of a pull-to-refresh stays until the page has reloaded (or a few seconds).
+    LaunchedEffect(pull.refreshing) {
+        if (pull.refreshing) {
+            delay(500)
+            withTimeoutOrNull(8_000) { snapshotFlow { controller.activeTab?.isLoading == true }.first { !it } }
+            pull.refreshing = false
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(Nv.colors.window)) {
         val pageModifier = if (fullScreen) Modifier.fillMaxSize()
@@ -121,6 +159,8 @@ fun BrowserScreen(
             toolbarHeightPx = if (fullScreen) 0 else toolbarHeightPx,
             visibleToolbarPx = if (fullScreen) 0 else (toolbarHeightPx * (1 - offsetFraction)).roundToInt(),
             bottomToolbar = bottom,
+            pullEnabled = settings.pullToRefresh && !fullScreen && !tab.isHome,
+            pull = pull,
             modifier = pageModifier,
         )
 
@@ -129,6 +169,11 @@ fun BrowserScreen(
         }
         tab.blockedUrl?.let { blocked -> PhishingWarning(blocked, onBack = { controller.goBack(tab) }, onContinue = { controller.openBlockedAnyway(tab) }) }
         if (tab.isCrashed) CrashedPage(onReload = { controller.reload(tab) })
+
+        if (!fullScreen && (pull.distance > 0f || pull.refreshing)) {
+            val topInset = if (bottom) 0 else (toolbarHeightPx * (1 - offsetFraction)).roundToInt()
+            PullIndicator(pull, Modifier.align(Alignment.TopCenter).statusBarsPadding().offset { IntOffset(0, topInset) })
+        }
 
         if (!fullScreen) {
             val shift = (toolbarHeightPx * offsetFraction).roundToInt()
@@ -143,13 +188,51 @@ fun BrowserScreen(
                 if (state.findInPage && tab.session != null) {
                     FindBar(tab.session!!, onClose = { state.findInPage = false })
                 } else {
-                    Toolbar(controller, tab, state, bottom)
+                    Toolbar(controller, tab, state, bottom, actions, gestures = settings.toolbarGestures, buttons = settings.appearance.toolbarButtons)
                 }
                 if (!bottom) PermissionBars(controller, tab)
             }
         }
     }
 }
+
+/** A pull-to-refresh in progress: how far, and whether the page is reloading. */
+class PullState {
+    var distance by mutableFloatStateOf(0f)
+    var refreshing by mutableStateOf(false)
+}
+
+@Composable
+private fun PullIndicator(pull: PullState, modifier: Modifier) {
+    val colors = Nv.colors
+    val density = LocalDensity.current
+    val threshold = with(density) { PULL_THRESHOLD.toPx() }
+    val shown by animateFloatAsState(if (pull.refreshing) threshold else pull.distance.coerceAtMost(threshold * 1.4f), label = "pull")
+    Box(
+        modifier
+            .offset { IntOffset(0, (shown * 0.9f).roundToInt()) }
+            .size(42.dp)
+            .shadow(6.dp, CircleShape)
+            .clip(CircleShape)
+            .background(colors.sheet),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (pull.refreshing) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = colors.accent, strokeWidth = 2.5.dp)
+        } else {
+            val progress = (pull.distance / threshold).coerceIn(0f, 1f)
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.size(22.dp),
+                color = if (progress >= 1f) colors.accent else colors.textSecondary,
+                strokeWidth = 2.5.dp,
+                trackColor = colors.surfaceActive,
+            )
+        }
+    }
+}
+
+private val PULL_THRESHOLD = 72.dp
 
 @Composable
 private fun GeckoViewHost(
@@ -158,15 +241,28 @@ private fun GeckoViewHost(
     toolbarHeightPx: Int,
     visibleToolbarPx: Int,
     bottomToolbar: Boolean,
+    pullEnabled: Boolean,
+    pull: PullState,
     modifier: Modifier,
 ) {
     val sessionsVersion = controller.sessionsChanged
-    val background = Nv.colors.window.toArgb()
+    val background = Nv.colors.window.copy(alpha = 1f).toArgb()
+    val threshold = with(LocalDensity.current) { PULL_THRESHOLD.toPx() }
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            GeckoView(context).apply {
+            NvGeckoView(context).apply {
                 coverUntilFirstPaint(background)
+                pullThreshold = threshold
+                isScrolledToTop = { (controller.activeTab?.scrollY ?: 1) <= 1 }
+                onPull = { distance -> pull.distance = distance }
+                onPullEnd = { reload ->
+                    pull.distance = 0f
+                    if (reload) controller.activeTab?.let { active ->
+                        pull.refreshing = true
+                        controller.reload(active)
+                    }
+                }
                 controller.geckoView = this
             }
         },
@@ -179,6 +275,7 @@ private fun GeckoViewHost(
                 view.releaseSession()
                 view.setSession(target)
             }
+            view.pullEnabled = pullEnabled && target != null
             view.setDynamicToolbarMaxHeight(toolbarHeightPx)
             view.setVerticalClipping(if (bottomToolbar) -visibleToolbarPx else visibleToolbarPx)
         },
@@ -190,12 +287,29 @@ private fun GeckoViewHost(
 }
 
 @Composable
-private fun Toolbar(controller: TabsController, tab: BrowserTab, state: AppUiState, bottom: Boolean) {
+private fun Toolbar(
+    controller: TabsController,
+    tab: BrowserTab,
+    state: AppUiState,
+    bottom: Boolean,
+    actions: ActivityActions,
+    gestures: Boolean,
+    buttons: List<String>,
+) {
     val colors = Nv.colors
-    var dragTotal by remember { mutableStateOf(0f) }
-    val switchDistance = with(LocalDensity.current) { 72.dp.toPx() }
+    val look = Nv.look
+    val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
+    val switchDistance = with(density) { 72.dp.toPx() }
+    val openDistance = with(density) { 36.dp.toPx() }
+    var dragX by remember { mutableFloatStateOf(0f) }
+    var dragY by remember { mutableFloatStateOf(0f) }
+    // The address follows the finger a little while swiping to the next tab.
+    val pillShift by animateFloatAsState(dragX * 0.35f, spring(stiffness = Spring.StiffnessMediumLow), label = "pill")
+    val background = if (look.glassToolbar) colors.sheet.copy(alpha = 0.76f) else colors.sheet
+    val pillHeight = look.toolbarHeight - 16.dp
 
-    Column(Modifier.fillMaxWidth().background(colors.panel)) {
+    Column(Modifier.fillMaxWidth().background(background)) {
         if (bottom) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.panelBorder))
         Box(Modifier.fillMaxWidth().height(2.dp)) {
             if (tab.isLoading) {
@@ -210,30 +324,103 @@ private fun Toolbar(controller: TabsController, tab: BrowserTab, state: AppUiSta
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(start = 10.dp, end = 4.dp)
-                // Swipe along the toolbar to go to the previous / next tab.
-                .pointerInput(tab.id) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragTotal = 0f },
-                        onDragEnd = {
-                            if (dragTotal > switchDistance) controller.selectAdjacent(-1)
-                            else if (dragTotal < -switchDistance) controller.selectAdjacent(1)
-                        },
-                    ) { _, amount -> dragTotal += amount }
-                },
+                .height(look.toolbarHeight)
+                .padding(start = if (buttons.isEmpty()) 10.dp else 4.dp, end = 4.dp)
+                .then(
+                    if (!gestures) Modifier
+                    // Sideways: previous / next tab. Up (down for a top toolbar): the tab overview.
+                    else Modifier.pointerInput(tab.id, bottom) {
+                        detectDragGestures(
+                            onDragStart = { dragX = 0f; dragY = 0f },
+                            onDragCancel = { dragX = 0f; dragY = 0f },
+                            onDragEnd = {
+                                if (abs(dragX) > abs(dragY)) {
+                                    if (dragX > switchDistance) controller.selectAdjacent(-1).also { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                                    else if (dragX < -switchDistance) controller.selectAdjacent(1).also { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                                } else if ((bottom && dragY < -openDistance) || (!bottom && dragY > openDistance)) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    state.showTabs()
+                                }
+                                dragX = 0f
+                                dragY = 0f
+                            },
+                        ) { change, amount ->
+                            change.consume()
+                            dragX += amount.x
+                            dragY += amount.y
+                        }
+                    }
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            AddressPill(tab, Modifier.weight(1f), onClick = { state.openAddress(tab) }, onReload = {
-                if (tab.isLoading) controller.stop(tab) else controller.reload(tab)
-            })
-            Spacer(Modifier.width(6.dp))
-            TabsButton(controller.tabs.count { it.isPrivate == tab.isPrivate }, onClick = { state.showTabs() }, onLongClick = { controller.newTab(private = tab.isPrivate) })
+            buttons.forEach { id -> ToolbarButton(id, controller, tab, state, actions) }
+            AddressPill(
+                tab,
+                Modifier.weight(1f).height(pillHeight).offset { IntOffset(pillShift.roundToInt(), 0) },
+                onClick = { state.openAddress(tab) },
+                onReload = { if (tab.isLoading) controller.stop(tab) else controller.reload(tab) },
+            )
+            Spacer(Modifier.width(4.dp))
+            TabsButton(controller, tab, state)
             IconButton(onClick = { state.menuOpen = true }) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = "Menu", tint = colors.text)
+                Icon(Icons.Rounded.MoreVert, contentDescription = "Menu du navigateur", tint = colors.text)
             }
         }
         if (!bottom) Box(Modifier.fillMaxWidth().height(1.dp).background(colors.panelBorder))
+    }
+}
+
+/** One of the buttons chosen in Personnaliser → Barre d'outils. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ToolbarButton(id: String, controller: TabsController, tab: BrowserTab, state: AppUiState, actions: ActivityActions) {
+    val app = com.navigatueur.mobile.NavigatueurApp.instance
+    val haptics = LocalHapticFeedback.current
+    val isWebPage = UrlHelper.isWebUrl(tab.url) && !tab.isHome
+    val bookmarks by app.stores.bookmarks.flow.collectAsState()
+    val bookmarked = remember(bookmarks, tab.url) { app.stores.isBookmarked(tab.url) }
+    val showHistory = {
+        if (tab.history.size > 1) {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            state.tabHistoryOpen = true
+        }
+    }
+    when (id) {
+        ToolbarButtonIds.BACK -> ToolbarIcon(Icons.AutoMirrored.Rounded.ArrowBack, "Page précédente", tab.canGoBack || tab.blockedUrl != null, onLongClick = showHistory) { controller.goBack(tab) }
+        ToolbarButtonIds.FORWARD -> ToolbarIcon(Icons.AutoMirrored.Rounded.ArrowForward, "Page suivante", tab.canGoForward, onLongClick = showHistory) { controller.goForward(tab) }
+        ToolbarButtonIds.HOME -> ToolbarIcon(Icons.Rounded.Home, "Page d'accueil", true) { controller.goHome(tab) }
+        ToolbarButtonIds.NEW_TAB -> ToolbarIcon(Icons.Rounded.Add, "Nouvel onglet", true) { state.openAddress(null, newTab = true, private = tab.isPrivate) }
+        ToolbarButtonIds.SHARE -> ToolbarIcon(Icons.Rounded.Share, "Partager", isWebPage) { actions.share(tab.displayTitle, null, tab.url) }
+        ToolbarButtonIds.BOOKMARK -> ToolbarIcon(if (bookmarked) Icons.Rounded.Star else Icons.Rounded.StarBorder, if (bookmarked) "Retirer des favoris" else "Ajouter aux favoris", isWebPage, highlighted = bookmarked) {
+            val added = app.stores.toggleBookmark(tab.url, tab.displayTitle)
+            controller.emit(com.navigatueur.mobile.browser.UiEvent.Message(if (added) "Ajouté aux favoris" else "Retiré des favoris"))
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ToolbarIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    enabled: Boolean,
+    highlighted: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+) {
+    val colors = Nv.colors
+    Box(
+        Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick, role = Role.Button, onClickLabel = description),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon, description,
+            tint = (if (highlighted) colors.accent else colors.text).copy(alpha = if (enabled) 1f else 0.32f),
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 
@@ -242,10 +429,9 @@ private fun AddressPill(tab: BrowserTab, modifier: Modifier, onClick: () -> Unit
     val colors = Nv.colors
     Row(
         modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surface)
-            .clickable(onClick = onClick)
+            .clip(Nv.shape(12.dp))
+            .background(colors.surface.copy(alpha = if (Nv.look.glassToolbar) 0.7f else 1f))
+            .clickable(onClick = onClick, onClickLabel = "Saisir une adresse")
             .padding(start = 12.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -273,24 +459,62 @@ private fun AddressPill(tab: BrowserTab, modifier: Modifier, onClick: () -> Unit
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+/** The tab counter: a tap shows every tab, a long press offers new tab, private tab, close. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TabsButton(count: Int, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun TabsButton(controller: TabsController, tab: BrowserTab, state: AppUiState) {
     val colors = Nv.colors
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        contentAlignment = Alignment.Center,
-    ) {
+    val haptics = LocalHapticFeedback.current
+    val count = controller.tabs.count { it.isPrivate == tab.isPrivate }
+    var menu by remember { mutableStateOf(false) }
+    Box {
         Box(
             Modifier
-                .size(23.dp)
-                .border(1.8.dp, if (colors.isPrivate) colors.accent else colors.text, RoundedCornerShape(6.dp)),
+                .size(44.dp)
+                .clip(Nv.shape(10.dp))
+                .combinedClickable(
+                    onClick = { state.showTabs() },
+                    onLongClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menu = true
+                    },
+                    onClickLabel = "Vue des onglets",
+                )
+                .semantics { contentDescription = "Vue des onglets" },
             contentAlignment = Alignment.Center,
         ) {
-            Text(if (count > 99) ":D" else count.toString(), color = colors.text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Box(
+                Modifier
+                    .size(23.dp)
+                    .border(1.8.dp, if (colors.isPrivate) colors.accent else colors.text, Nv.shape(6.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (count > 99) ":D" else count.toString(), color = colors.text, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text("Nouvel onglet") },
+                leadingIcon = { Icon(Icons.Rounded.Add, null) },
+                onClick = { menu = false; state.openAddress(null, newTab = true, private = false) },
+            )
+            DropdownMenuItem(
+                text = { Text("Nouvel onglet privé") },
+                leadingIcon = { Icon(Icons.Rounded.VisibilityOff, null) },
+                onClick = { menu = false; state.openAddress(null, newTab = true, private = true) },
+            )
+            if (controller.canReopenClosedTab) {
+                DropdownMenuItem(
+                    text = { Text("Rouvrir l'onglet fermé") },
+                    leadingIcon = { Icon(Icons.Rounded.Restore, null) },
+                    onClick = { menu = false; controller.reopenClosedTab() },
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("Fermer cet onglet") },
+                leadingIcon = { Icon(Icons.Rounded.Close, null) },
+                onClick = { menu = false; controller.closeTabByUser(tab) },
+            )
         }
     }
 }
@@ -317,11 +541,11 @@ private fun FindBar(session: GeckoSession, onClose: () -> Unit) {
     LaunchedEffect(Unit) { focus.requestFocus() }
 
     Row(
-        Modifier.fillMaxWidth().background(colors.panel).height(58.dp).padding(horizontal = 10.dp),
+        Modifier.fillMaxWidth().background(colors.sheet).height(58.dp).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(horizontal = 12.dp),
+            Modifier.weight(1f).height(40.dp).clip(Nv.shape(12.dp)).background(colors.surface.copy(alpha = 1f)).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Rounded.Search, null, tint = colors.textTertiary, modifier = Modifier.size(18.dp))
@@ -362,9 +586,9 @@ private fun PermissionCard(request: PermissionRequest, onDone: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .padding(10.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.panel)
-            .border(1.dp, colors.panelBorder, RoundedCornerShape(14.dp))
+            .clip(Nv.shape(14.dp))
+            .background(colors.sheet)
+            .border(1.dp, colors.panelBorder, Nv.shape(14.dp))
             .padding(16.dp),
     ) {
         Text("${request.host} demande à ${request.description}", color = colors.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)

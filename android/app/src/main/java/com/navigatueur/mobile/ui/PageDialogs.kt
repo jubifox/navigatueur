@@ -361,7 +361,7 @@ private fun ContextMenuSheet(app: NavigatueurApp, menu: ContextMenuRequest, acti
         controller.emit(com.navigatueur.mobile.browser.UiEvent.Message("Copié"))
     }
 
-    ModalBottomSheet(onDismissRequest = onDone, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.panel) {
+    ModalBottomSheet(onDismissRequest = onDone, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = colors.sheet) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 12.dp)) {
             Text(
                 menu.linkUrl ?: menu.mediaUrl ?: "",
@@ -421,7 +421,7 @@ private fun ExtensionPopupSheet(session: org.mozilla.geckoview.GeckoSession, onD
     ModalBottomSheet(
         onDismissRequest = onDone,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = Nv.colors.panel,
+        containerColor = Nv.colors.sheet,
     ) {
         AndroidView(
             factory = { context -> GeckoView(context).apply { setSession(session) } },

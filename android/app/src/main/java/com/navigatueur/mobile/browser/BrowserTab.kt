@@ -49,6 +49,13 @@ class BrowserTab(
     var isLive by mutableStateOf(false)
     var lastActive by mutableLongStateOf(System.currentTimeMillis())
 
+    /** How far the page is scrolled down, as the engine last reported it (0: at its top). Not observed by the screen. */
+    var scrollY: Int = 0
+
+    /** The tab's back/forward list as the engine last reported it, and where the page shown is in it. */
+    var history by mutableStateOf<List<TabHistoryItem>>(emptyList())
+    var historyIndex by mutableIntStateOf(-1)
+
     /** Phishing warning shown instead of the page (the blocked address). */
     var blockedUrl by mutableStateOf<String?>(null)
 
@@ -118,3 +125,6 @@ data class ClosedTab(
     val isPrivate: Boolean,
     val engineState: String?,
 )
+
+/** One page of a tab's back/forward list. */
+data class TabHistoryItem(val url: String, val title: String)
