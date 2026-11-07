@@ -17,10 +17,22 @@
   Keep a copy of the .jks file and its password somewhere safe: without them,
   a future version can't be installed over the current one.
 
+  Since v0.23.0 the repository's secrets already hold the signing key (made
+  on 2026-11-07, certificate SHA-256 F0:32:E7:3E:…:5F:87:85:17), and the
+  copy kept by its owner is the one to restore from — not the older key that
+  may still be in the folder above. Replacing the secrets with another key
+  stops every installed copy from updating, so the script refuses unless
+  -Replace is given.
+
 .EXAMPLE
-  pwsh packaging/android/set-signing-secrets.ps1
+  pwsh packaging/android/set-signing-secrets.ps1 -Replace
 #>
+param([switch]$Replace)
 $ErrorActionPreference = 'Stop'
+
+if (-not $Replace) {
+    throw "Les secrets du dépôt contiennent déjà la clé de signature Android (depuis la v0.23.0). La remplacer empêcherait les téléphones de se mettre à jour : relancez avec -Replace seulement si c'est vraiment voulu."
+}
 $repo = 'jubifox/navigatueur'
 $dir = Join-Path $env:USERPROFILE '.navigatueur\android-signing'
 $keystore = Join-Path $dir 'navigatueur-release.jks'
