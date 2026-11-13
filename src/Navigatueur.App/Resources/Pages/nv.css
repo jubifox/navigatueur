@@ -124,6 +124,11 @@ h3 {
 
 /* -------------------------------------------------------------- buttons */
 
+/* "hidden" must win over the display of styled elements (.btn is inline-flex). */
+[hidden] {
+  display: none !important;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
