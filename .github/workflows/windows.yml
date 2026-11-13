@@ -100,6 +100,13 @@ jobs:
             if (-not (Test-Path (Join-Path $dir "Extensions\$($extension.package)"))) { throw "Missing built-in extension package: $($extension.package)" }
           }
 
+          # Windows lists it among browsers it can open links with (Paramètres > Applications par défaut).
+          $registered = Get-ItemPropertyValue 'HKLM:\SOFTWARE\RegisteredApplications' -Name 'Navigatueur' -ErrorAction SilentlyContinue
+          if ($registered -ne 'Software\Clients\StartMenuInternet\Navigatueur\Capabilities') { throw "Not registered as a browser (RegisteredApplications: '$registered')" }
+          $https = Get-ItemPropertyValue 'HKLM:\SOFTWARE\Clients\StartMenuInternet\Navigatueur\Capabilities\URLAssociations' -Name 'https'
+          $command = (Get-ItemProperty 'HKLM:\SOFTWARE\Classes\NavigatueurHTML\shell\open\command').'(default)'
+          if ($https -ne 'NavigatueurHTML' -or $command -notlike "*Navigatueur.exe*%1*") { throw "Link association incomplete: https=$https, command=$command" }
+
           New-Item -ItemType Directory -Force "$env:APPDATA\Navigatueur" | Out-Null
           '{ "Interface": { "HasSeenIntro": true } }' | Set-Content "$env:APPDATA\Navigatueur\settings.json"
           $app = Start-Process $exe -PassThru
@@ -107,6 +114,17 @@ jobs:
           $app.Refresh()
           if ($app.HasExited) { throw "The installed app exited (code $($app.ExitCode))" }
           if ($app.MainWindowHandle -eq 0) { throw 'The installed app has no window' }
+
+          # A link opened while it runs (what Windows does for the default browser):
+          # handed to the running copy, which opens it in a tab; no second copy stays.
+          $second = Start-Process $exe -ArgumentList 'https://example.com/' -PassThru
+          if (-not $second.WaitForExit(15000)) { throw 'The second launch did not hand the link over and leave' }
+          Start-Sleep -Seconds 8
+          $running = @(Get-Process Navigatueur -ErrorAction SilentlyContinue)
+          if ($running.Count -ne 1) { throw "Expected one Navigatueur process, found $($running.Count)" }
+          $app.Refresh()
+          Write-Host "Window title after the link: $($app.MainWindowTitle)"
+          if ($app.MainWindowTitle -notlike '*Example Domain*') { throw "The link did not open in the running window (title: $($app.MainWindowTitle))" }
           Stop-Process -Id $app.Id -Force
           Start-Sleep -Seconds 2
 
@@ -114,6 +132,8 @@ jobs:
           if (Test-Path $crash) { Get-Content $crash; throw 'The installed app wrote crash.log' }
 
           Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait
+          if (Get-ItemProperty 'HKLM:\SOFTWARE\RegisteredApplications' -Name 'Navigatueur' -ErrorAction SilentlyContinue) { throw 'The browser registration was left behind' }
+          if (Test-Path 'HKLM:\SOFTWARE\Clients\StartMenuInternet\Navigatueur') { throw 'StartMenuInternet\Navigatueur was left behind' }
           Write-Host 'Install, start and uninstall OK'
 
       - uses: actions/upload-artifact@v4

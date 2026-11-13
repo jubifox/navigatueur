@@ -120,6 +120,9 @@ public partial class MainWindow : Window, IShellCommands
             ContentRendered += OnFirstContentRendered;
         }
 
+        // Back from Windows Settings (default browser chosen?): open Settings pages show the new state.
+        Activated += (_, _) => InternalPageBridge.Invalidate();
+
         Closing += OnClosing;
         Closed += OnClosed;
     }
@@ -850,6 +853,43 @@ public partial class MainWindow : Window, IShellCommands
             ContextMenuStrip = menu,
         };
         _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
+    }
+
+    /// <summary>
+    /// Links from outside Navigatueur (Windows opening a link with it, or a
+    /// second launch): each in a new tab, the window brought forward — out of
+    /// the tray or the taskbar if needed.
+    /// </summary>
+    public void OpenFromOutside(IReadOnlyList<string> urls, bool bringToFront)
+    {
+        if (bringToFront)
+        {
+            if (!IsVisible)
+            {
+                RestoreFromTray();
+            }
+            else if (WindowState == WindowState.Minimized)
+            {
+                // SC_RESTORE: back to what it was before (maximized or not).
+                SystemCommands.RestoreWindow(this);
+            }
+
+            Activate();
+            // Activate() alone can leave the window flashing in the taskbar: a brief topmost toggle brings it up for real.
+            Topmost = true;
+            Topmost = false;
+            Focus();
+        }
+
+        foreach (var url in urls)
+        {
+            _tabManager.OpenTab(url);
+        }
+
+        if (urls.Count > 0)
+        {
+            FocusPage();
+        }
     }
 
     private void RestoreFromTray()

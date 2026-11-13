@@ -199,6 +199,7 @@ public static class InternalPageBridge
                 suspendMinutes = settings.TabSuspendMinutes,
                 maxLiveTabs = settings.MaxLiveTabs,
                 autoPip = settings.IsAutoPictureInPictureEnabled,
+                defaultBrowser = new { registered = DefaultBrowser.IsRegistered, isDefault = DefaultBrowser.IsDefault },
                 rememberedPermissions = AppServices.PermissionStore.Count,
             },
             shortcuts = ShortcutCatalog.All
@@ -402,6 +403,9 @@ public static class InternalPageBridge
             case "history.clear":
                 AppServices.History.Clear();
                 Post(core, BuildHistory(null, 300));
+                break;
+            case "browser.default":
+                DefaultBrowser.OpenWindowsSettings();
                 break;
             case "permissions.clear":
                 AppServices.PermissionStore.Clear();

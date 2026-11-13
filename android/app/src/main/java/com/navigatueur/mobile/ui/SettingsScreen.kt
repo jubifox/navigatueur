@@ -117,6 +117,20 @@ fun SettingsScreen(app: NavigatueurApp, state: AppUiState, actions: ActivityActi
             }
 
             Section("Navigation", "Démarrage, page d'accueil et recherche.") {
+                // Rechecked each time the screen comes back (after Android's dialog or its settings).
+                var isDefault by remember { mutableStateOf(actions.isDefaultBrowser()) }
+                androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    isDefault = actions.isDefaultBrowser()
+                }
+                SettingRow(
+                    "Navigateur par défaut",
+                    if (isDefault) "Navigatueur ouvre les liens des autres applications." else "Pour que les liens des autres applications s'ouvrent dans Navigatueur.",
+                    onClick = if (isDefault) null else ({ actions.requestDefaultBrowser() }),
+                ) {
+                    if (isDefault) Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                    else Text("Choisir", color = colors.accent, fontSize = 15.sp)
+                }
+                RowDivider()
                 SettingRow("Au démarrage") {
                     Segmented(listOf("RestoreSession" to "Reprendre", "HomePage" to "Accueil"), settings.startupBehavior, { v -> update { it.copy(startupBehavior = v) } })
                 }

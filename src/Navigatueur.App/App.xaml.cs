@@ -4,11 +4,14 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Threading;
 using Navigatueur.App.Services;
+using Navigatueur.Core;
 
 namespace Navigatueur.App;
 
 public partial class App : Application
 {
+    private SingleInstance? _singleInstance;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -22,6 +25,16 @@ public partial class App : Application
 
         base.OnStartup(e);
 
+        // Links Windows hands over (default browser, "Ouvrir avec"): to the copy
+        // already running if there is one — this process then has nothing to do.
+        var urls = LaunchArguments.ParseUrls(e.Args);
+        _singleInstance = SingleInstance.Claim(urls, out var handedOver);
+        if (_singleInstance is null && handedOver)
+        {
+            Shutdown();
+            return;
+        }
+
         // Off the UI thread, while the window builds; the engine waits for it (see StartupWork).
         WebView2EnvironmentService.StartupWork = Task.Run(BuiltInExtensions.UpgradeInstalledCopies);
 
@@ -33,7 +46,21 @@ public partial class App : Application
         // convenience, not a real parameterless overload, so the reflection
         // lookup found nothing and crashed on every launch. Calling the
         // constructor directly from code resolves the defaults normally.
-        new MainWindow().Show();
+        var window = new MainWindow();
+        window.Show();
+        window.OpenFromOutside(urls, bringToFront: false);
+
+        if (_singleInstance is not null)
+        {
+            _singleInstance.Received = received => Dispatcher.BeginInvoke(() =>
+                (MainWindow as MainWindow ?? window).OpenFromOutside(received, bringToFront: true));
+        }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _singleInstance?.Dispose();
+        base.OnExit(e);
     }
 
     /// <summary>

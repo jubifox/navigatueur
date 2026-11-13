@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
+import android.app.role.RoleManager
 import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -82,6 +83,11 @@ class MainActivity : ComponentActivity(), ActivityActions {
     }
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Android's "default browser" dialog only answers an activity that waits for its result. */
+    private val defaultBrowserRequest = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        if (!isDefaultBrowser()) openDefaultAppsSettings()
+    }
 
     private val backgroundPicker = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@registerForActivityResult
@@ -328,6 +334,32 @@ class MainActivity : ComponentActivity(), ActivityActions {
             .setIntent(Intent(Intent.ACTION_VIEW, Uri.parse(tab.url), this, MainActivity::class.java))
             .build()
         ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
+    }
+
+    override fun isDefaultBrowser(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)) return roles.isRoleHeld(RoleManager.ROLE_BROWSER)
+        }
+        val handler = packageManager.resolveActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), PackageManager.MATCH_DEFAULT_ONLY)
+        return handler?.activityInfo?.packageName == packageName
+    }
+
+    override fun requestDefaultBrowser() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val roles = getSystemService(RoleManager::class.java)
+            if (roles != null && roles.isRoleAvailable(RoleManager.ROLE_BROWSER)) {
+                runCatching { defaultBrowserRequest.launch(roles.createRequestRoleIntent(RoleManager.ROLE_BROWSER)) }
+                    .onFailure { openDefaultAppsSettings() }
+                return
+            }
+        }
+        openDefaultAppsSettings()
+    }
+
+    /** Settings > Apps > Default apps, where the browser is picked (the dialog was refused, or this Android has none). */
+    private fun openDefaultAppsSettings() {
+        startActivitySafely(Intent(android.provider.Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
     }
 
     override fun moveToBackground() {

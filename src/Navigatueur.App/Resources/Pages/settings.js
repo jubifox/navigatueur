@@ -261,6 +261,14 @@
       engines.appendChild(chip);
     });
 
+    var defaultBrowser = (state.navigation && state.navigation.defaultBrowser) || {};
+    $("#defaultBrowserText").textContent = defaultBrowser.isDefault
+      ? "Navigatueur ouvre les liens des autres applications."
+      : defaultBrowser.registered
+        ? "Pour que les liens des autres applications s'ouvrent ici : choisissez Navigatueur dans les réglages de Windows."
+        : "Disponible une fois Navigatueur installé avec son installateur.";
+    $("#defaultBrowserButton").hidden = !!defaultBrowser.isDefault || !defaultBrowser.registered;
+
     var darkSites = (state.theme && state.theme.forceDarkSites) || 0;
     $("#forceDarkSitesText").textContent = darkSites === 0
       ? "Aucun site réglé à part. Depuis le menu ⋯ d'une page : « Activer / Désactiver le mode sombre sur ce site »."

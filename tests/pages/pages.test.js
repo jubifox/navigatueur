@@ -45,6 +45,7 @@ function makeState(overrides = {}) {
         { id: "Qwant", name: "Qwant" }, { id: "Ecosia", name: "Ecosia" },
       ],
       adBlock: true, phishing: true, suspendMinutes: 15, maxLiveTabs: 3, autoPip: true, rememberedPermissions: 2,
+      defaultBrowser: { registered: true, isDefault: false },
     },
     shortcuts: [
       { id: "tab.new", label: "Nouvel onglet", category: "Onglets", gestures: ["Ctrl + T"], isDefault: true },
@@ -228,6 +229,23 @@ test("settings: controls send the right setting keys and values", async (browser
 
   await page.click('label.switch:has([data-key="media.autoPip"])');
   assert.deepStrictEqual(await lastOfType(page, "nv:set"), { type: "nv:set", key: "media.autoPip", value: false });
+});
+
+test("settings: default browser row says where Navigatueur stands and opens Windows settings", async (browser) => {
+  const { page } = await openPage(browser, "settings.html");
+  await deliver(page, makeState());
+  assert.match(await page.textContent("#defaultBrowserText"), /réglages de Windows/);
+  assert.strictEqual(await page.isVisible("#defaultBrowserButton"), true);
+  await page.click("#defaultBrowserButton");
+  assert.deepStrictEqual(await lastOfType(page, "nv:action"), { type: "nv:action", name: "browser.default" });
+
+  await deliver(page, makeState({ navigation: { defaultBrowser: { registered: true, isDefault: true } } }));
+  assert.match(await page.textContent("#defaultBrowserText"), /ouvre les liens/);
+  assert.strictEqual(await page.isVisible("#defaultBrowserButton"), false);
+
+  await deliver(page, makeState({ navigation: { defaultBrowser: { registered: false, isDefault: false } } }));
+  assert.match(await page.textContent("#defaultBrowserText"), /installateur/);
+  assert.strictEqual(await page.isVisible("#defaultBrowserButton"), false);
 });
 
 test("settings: forced dark mode shows its per-site choices and can reset them", async (browser) => {

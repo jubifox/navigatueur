@@ -103,6 +103,12 @@ interface ActivityActions {
     fun enterPictureInPicture()
     fun moveToBackground()
 
+    /** Navigatueur opens the links of other apps (Android's default browser). */
+    fun isDefaultBrowser(): Boolean
+
+    /** Asks Android to make Navigatueur the default browser (its own dialog, or its settings page). */
+    fun requestDefaultBrowser()
+
     /** A speech recognizer is installed (Google, Samsung…). */
     val canVoiceSearch: Boolean
 
