@@ -1,0 +1,13 @@
+--------- beginning of main
+11-13 18:37:55.352  4498  4498 D NvPull  : down pullEnabled=true session=true
+11-13 18:37:55.455  4498  4498 D NvPull  : detail handled=1 scrollable=5 overscroll=3 top=true atTop=true
+11-13 18:37:55.488  4498  4498 D NvPull  : pulling
+11-13 18:37:57.907  4498  4498 D NvPull  : end reload=true
+11-13 18:38:05.671  4498  4498 D NvPull  : down pullEnabled=true session=true
+11-13 18:38:05.672  4498  4498 D NvPull  : detail handled=1 scrollable=5 overscroll=3 top=true atTop=true
+11-13 18:38:12.124  4498  4498 D NvPull  : down pullEnabled=true session=true
+11-13 18:38:12.125  4498  4498 D NvPull  : detail handled=1 scrollable=5 overscroll=3 top=false atTop=false
+11-13 18:38:48.877  4498  4498 D NvPull  : down pullEnabled=true session=true
+11-13 18:38:48.900  4498  4498 D NvPull  : detail handled=1 scrollable=5 overscroll=3 top=true atTop=true
+11-13 18:38:48.955  4498  4498 D NvPull  : pulling
+11-13 18:38:51.421  4498  4498 D NvPull  : end reload=true
